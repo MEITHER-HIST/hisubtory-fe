@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Bookmark, BookmarkCheck, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { episodes } from '../data/episodes';
 import { Episode } from '../types';
 import { getUserProgress, markEpisodeAsViewed, toggleSavedEpisode } from '../utils/localStorage';
@@ -99,8 +100,9 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
       setCurrentEpisode(episode);
       markEpisodeAsViewed(episode.id);
       setProgress(getUserProgress());
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      alert('이 역의 모든 에피소드를 보셨습니다!');
+      toast('이 역의 모든 에피소드를 확인했어요!');
     }
   };
 
@@ -114,10 +116,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
 
   const isSaved = progress.savedEpisodes.includes(currentEpisode.id);
   const isViewed = progress.viewedEpisodes.includes(currentEpisode.id);
-  const stationEpisodes = episodes.filter(ep => ep.stationId === stationId);
-  const hasUnviewedEpisodes = user && stationEpisodes.some(ep => 
-    !progress.viewedEpisodes.includes(ep.id)
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -180,83 +178,36 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
 
         {/* Action Buttons */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex gap-3">
-            {user && (
-              <>
-                <button
-                  onClick={handleSaveToggle}
-                  className={`flex-1 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                    isSaved
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {isSaved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
-                  {isSaved ? '저장됨' : '저장하기'}
-                </button>
-                
-                {hasUnviewedEpisodes && (
-                  <button
-                    onClick={handleNewEpisode}
-                    className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                    새 에피소드 보기
-                  </button>
-                )}
-              </>
-            )}
-            
-            {!user && (
-              <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-amber-800 text-sm text-center">
-                  💡 로그인하면 에피소드를 저장하고 진행상황을 기록할 수 있어요!
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Episode List */}
-        {stationEpisodes.length > 1 && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-gray-900 mb-4">이 역의 다른 에피소드</h3>
-            <div className="space-y-2">
-              {stationEpisodes.map((ep) => {
-                const viewed = user && progress.viewedEpisodes.includes(ep.id);
-                const isCurrent = ep.id === currentEpisode.id;
-                
-                return (
-                  <button
-                    key={ep.id}
-                    onClick={() => {
-                      setCurrentEpisode(ep);
-                      if (user) {
-                        markEpisodeAsViewed(ep.id);
-                        setProgress(getUserProgress());
-                      }
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={`w-full p-4 rounded-lg text-left transition-colors ${
-                      isCurrent
-                        ? 'bg-blue-100 border-2 border-blue-400'
-                        : viewed
-                        ? 'bg-green-50 hover:bg-green-100'
-                        : 'bg-gray-50 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-900">{ep.title}</span>
-                      {viewed && user && (
-                        <span className="text-green-600 text-sm">✓ 완료</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+          {user ? (
+            <div className="flex gap-3">
+              <button
+                onClick={handleSaveToggle}
+                className={`flex-1 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 border-2 ${
+                  isSaved
+                    ? 'bg-blue-50 text-blue-600 border-blue-600 hover:bg-blue-100'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {isSaved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
+                {isSaved ? '저장됨' : '저장하기'}
+              </button>
+              
+              <button
+                onClick={handleNewEpisode}
+                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-5 h-5" />
+                새 에피소드 보기
+              </button>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-amber-800 text-sm text-center">
+                💡 로그인하면 에피소드를 저장하고 진행상황을 기록할 수 있어요!
+              </p>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

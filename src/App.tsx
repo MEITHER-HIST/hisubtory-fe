@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Toaster } from 'sonner@2.0.3';
 import { MainScreen } from './components/MainScreen';
 import { StoryScreen } from './components/StoryScreen';
 import { MyPage } from './components/MyPage';
@@ -90,6 +91,7 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onLogin={handleLogin}
       />
+      <Toaster />
     </div>
   );
 }
