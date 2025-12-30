@@ -152,7 +152,10 @@ export default function App() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        onLogin={handleLogin}
+        onLogin={(u) => {
+          setUser(u);
+          setIsLoginModalOpen(false);
+        }}
       />
       <Toaster />
     </div>

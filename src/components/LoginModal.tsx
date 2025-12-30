@@ -1,12 +1,11 @@
-// LoginModal.tsx
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
-import type { User } from "../App"; // 경로가 다르면 맞춰줘 (예: "./App")
+import type { User } from "../App"; // App.tsx에서 export한 User 타입 사용
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (user: User) => void;
+  onLogin: (user: User) => void; // ✅ username string → User 객체로 변경
 }
 
 function getCookie(name: string) {
@@ -26,6 +25,7 @@ async function ensureCsrf() {
 async function postForm(url: string, body: Record<string, string>) {
   await ensureCsrf();
   const csrftoken = getCookie("csrftoken") ?? "";
+
   const res = await fetch(url, {
     method: "POST",
     credentials: "include",
@@ -35,27 +35,35 @@ async function postForm(url: string, body: Record<string, string>) {
     },
     body: new URLSearchParams(body).toString(),
   });
-  const data = await res.json().catch(() => null);
-  return { res, data };
+
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = null;
+  }
+  return { res, data, text };
 }
 
-function errorText(codeOrMessage: string | undefined) {
-  if (!codeOrMessage) return "요청에 실패했습니다.";
-  switch (codeOrMessage) {
-    case "email/password required":
-      return "이메일과 비밀번호를 입력해 주세요.";
-    case "no_user":
-      return "해당 이메일(또는 사용자)이 존재하지 않습니다.";
-    case "invalid_credentials":
-      return "이메일/비밀번호가 올바르지 않습니다.";
-    default:
-      return codeOrMessage;
+function prettyErrors(errors: any): string {
+  if (!errors) return "요청에 실패했습니다.";
+  // Django form.errors는 {field: ["msg",...]} 형태가 많음
+  try {
+    const lines: string[] = [];
+    for (const [k, v] of Object.entries(errors)) {
+      if (Array.isArray(v)) lines.push(`${k}: ${v.join(", ")}`);
+      else lines.push(`${k}: ${String(v)}`);
+    }
+    return lines.join("\n");
+  } catch {
+    return "입력값을 확인해 주세요.";
   }
 }
 
 export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState(""); // 로그인 identifier로 사용
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
@@ -63,28 +71,27 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const canLogin = useMemo(() => email.trim().length > 0 && password.trim().length > 0, [email, password]);
-  const canSignup = useMemo(
-    () =>
-      username.trim().length > 0 &&
-      email.trim().length > 0 &&
-      password.trim().length > 0 &&
-      confirmPassword.trim().length > 0,
-    [username, email, password, confirmPassword]
-  );
-
   if (!isOpen) return null;
 
   const fetchMeAndLogin = async () => {
     const meRes = await fetch("/api/accounts/me/", { credentials: "include" });
-    const me = await meRes.json().catch(() => null);
-    if (!meRes.ok || !me?.success) throw new Error("me_failed");
+    const meText = await meRes.text();
+    let me: any = null;
+    try {
+      me = JSON.parse(meText);
+    } catch {
+      me = null;
+    }
+
+    if (!meRes.ok || !me?.success) {
+      throw new Error("me_failed");
+    }
 
     const u: User = {
       id: me.id,
       username: me.username,
       email: me.email ?? "",
-      name: me.username,
+      name: me.username, // UI에서 name 쓰는 곳 대비
     };
     onLogin(u);
   };
@@ -92,31 +99,27 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
-    if (!canLogin) {
+
+    if (!email.trim() || !password.trim()) {
       setErr("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
 
     setLoading(true);
     try {
-      // ✅ Django view: identifier = request.POST.get("email") or request.POST.get("username")
-      const { res, data } = await postForm("/api/accounts/login/", {
+      const { res, data, text } = await postForm("/api/accounts/login/", {
         email: email.trim(),
-        password: password,
+        password,
       });
 
       if (!res.ok || !data?.success) {
-        setErr(errorText(data?.message));
+        setErr(data?.message ?? text ?? "로그인 실패");
         return;
       }
 
-      // ✅ 세션 로그인 성공 → me로 유저 정보 확보
       await fetchMeAndLogin();
-
-      // 입력 초기화
       setPassword("");
-      // email은 유지해도 되고 지워도 됨
-    } catch (e: any) {
+    } catch (e) {
       setErr("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -127,7 +130,7 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
     e.preventDefault();
     setErr(null);
 
-    if (!canSignup) {
+    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       setErr("모든 항목을 입력해 주세요.");
       return;
     }
@@ -138,42 +141,33 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
 
     setLoading(true);
     try {
-      // ✅ SignupForm이 보통 password1/password2를 씀(모를 때를 대비해 둘 다 전송)
-      const { res, data } = await postForm("/api/accounts/signup/", {
+      // ✅ Django SignupForm(UserCreationForm)이면 password1/password2가 정석
+      const { res, data, text } = await postForm("/api/accounts/signup/", {
         username: username.trim(),
         email: email.trim(),
         password1: password,
         password2: confirmPassword,
-        // 혹시 폼이 password/confirmPassword로 받는 경우 대비(추가키는 보통 무시됨)
-        password: password,
-        confirmPassword: confirmPassword,
       });
 
       if (!res.ok || !data?.success) {
-        // form.errors는 dict라 문자열로 정리
-        if (data?.errors) {
-          setErr("회원가입 입력값을 확인해 주세요.");
-        } else {
-          setErr(errorText(data?.message));
-        }
+        if (data?.errors) setErr(prettyErrors(data.errors));
+        else setErr(data?.message ?? text ?? "회원가입 실패");
         return;
       }
 
-      // ✅ 회원가입 직후 자동 로그인 (세션 생성)
+      // ✅ 회원가입 직후 자동 로그인(세션 생성)
       const loginTry = await postForm("/api/accounts/login/", {
         email: email.trim(),
-        password: password,
+        password,
       });
       if (!loginTry.res.ok || !loginTry.data?.success) {
-        // 자동로그인 실패하면 로그인 탭으로 보내기
         setActiveTab("login");
-        setErr("회원가입 완료! 로그인해 주세요.");
+        setErr("회원가입은 완료됐지만 로그인에 실패했어요. 로그인 탭에서 다시 시도해 주세요.");
         return;
       }
 
       await fetchMeAndLogin();
 
-      // 입력 초기화
       setUsername("");
       setPassword("");
       setConfirmPassword("");
@@ -200,7 +194,6 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
 
         <h2 className="text-gray-900 mb-6">환영합니다!</h2>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
           <button
             type="button"
@@ -229,12 +222,11 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
         </div>
 
         {err && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-100">
+          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-100 whitespace-pre-wrap">
             {err}
           </div>
         )}
 
-        {/* Login Form */}
         {activeTab === "login" && (
           <form onSubmit={handleLoginSubmit}>
             <div className="mb-4">
@@ -280,7 +272,6 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
           </form>
         )}
 
-        {/* Signup Form */}
         {activeTab === "signup" && (
           <form onSubmit={handleSignupSubmit}>
             <div className="mb-4">
