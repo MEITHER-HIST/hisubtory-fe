@@ -92,8 +92,8 @@ export function MainScreen({
     const data = await res.json().catch(() => ({} as any));
     if (!res.ok) throw new Error(data?.message ?? "pick_failed");
 
-    // ✅ App 화면 전환 방식으로 넘김
-    onRandomStation(String(stationId), String(data.episode_id));
+    // ✅ station_id(숫자 pk) 대신 station_name(역명)을 넘김
+    onRandomStation(String(data.station_name), String(data.episode_id));
   };
 
   const handleRandomStation = async () => {
@@ -104,13 +104,7 @@ export function MainScreen({
     const data = await res.json().catch(() => ({} as any));
     if (!res.ok) throw new Error(data?.message ?? "random_failed");
 
-    // 보통 station_id 같이 내려오는 경우가 많음
-    const stationId = data.station_id;
-    const episodeId = data.episode_id;
-
-    if (!stationId || !episodeId) throw new Error("random_response_missing_ids");
-
-    onRandomStation(String(stationId), String(episodeId));
+    onRandomStation(String(data.station_name), String(data.episode_id));
   };
 
   const handleSelectLine = (line: LineDTO) => {

@@ -142,7 +142,13 @@ export default function App() {
       )}
 
       {currentScreen === "story" && (
-        <StoryScreen user={user} stationId={selectedStationId} episodeId={selectedEpisodeId} onBack={handleBackToMain} />
+        <StoryScreen
+          key={`${selectedStationId ?? "none"}:${selectedEpisodeId ?? "none"}`}
+          user={user}
+          stationId={selectedStationId}
+          episodeId={selectedEpisodeId}
+          onBack={handleBackToMain}
+        />
       )}
 
       {currentScreen === "mypage" && (
