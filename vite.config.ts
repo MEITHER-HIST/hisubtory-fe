@@ -59,3 +59,14 @@
     },
   },
   });
+
+  /// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_URL: string;
+  // 여기에 추가로 사용하는 환경 변수가 있다면 더 적어주세요.
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
