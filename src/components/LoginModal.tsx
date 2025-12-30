@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (username: string) => void;
+  onLogin: (email: string, password: string) => Promise<void>;
 }
 
 export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
@@ -21,7 +21,7 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
     if (email.trim() && password.trim()) {
       // Extract name from email for demo purposes
       const name = email.split('@')[0];
-      onLogin(name);
+      onLogin(email, password);
       setEmail('');
       setPassword('');
     }
@@ -34,7 +34,7 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
         alert('비밀번호가 일치하지 않습니다.');
         return;
       }
-      onLogin(username.trim());
+      onLogin(email, password);
       setUsername('');
       setEmail('');
       setPassword('');
