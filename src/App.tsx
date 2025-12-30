@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { MainScreen } from "./components/MainScreen";
-import { StoryScreen } from "./components/StoryScreen";
+import StoryScreen from "./components/StoryScreen";
 import { MyPage } from "./components/MyPage";
 import { LoginModal } from "./components/LoginModal";
 
