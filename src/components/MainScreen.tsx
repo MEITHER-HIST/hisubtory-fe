@@ -1,7 +1,9 @@
+// MainScreen.tsx
 import { useState,useEffect, useMemo } from 'react';
 import { useNavigate } from "react-router-dom";
-import { Shuffle, User, Menu, ChevronDown } from 'lucide-react';
+import { Shuffle, User as UserIcon, Menu, ChevronDown } from 'lucide-react';
 import { SubwayMap } from './SubwayMap';
+import type { User } from "../App";
 
 type LineDTO = {
   id: number;
@@ -24,10 +26,12 @@ type MainApiResponse = {
 };
 
 interface MainScreenProps {
-  user: { name: string } | null;
+  user: User | null;
   onLoginClick: () => void;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
   onGoToMyPage: () => void;
+  onStationClick: (stationId: string) => void;
+  onRandomStation: (stationId: string, episodeId: string) => void;
 
   /** 에피소드 상세 라우팅 베이스(프로젝트마다 다르면 바꿔 쓰기) */
   episodePathBase?: string; // default: "/episodes"
@@ -38,6 +42,8 @@ export function MainScreen({
   onLoginClick,
   onLogout,
   onGoToMyPage,
+  onStationClick,
+  onRandomStation,
   episodePathBase = "/episodes",
 }: MainScreenProps) {
   const navigate = useNavigate();
@@ -89,8 +95,8 @@ export function MainScreen({
     const data = await res.json().catch(() => ({} as any));
     if (!res.ok) throw new Error(data?.message ?? "pick_failed");
 
-    // ✅ 라우트는 너희 프로젝트에 맞게 episodePathBase만 맞추면 됨
-    navigate(`${episodePathBase}/${data.episode_id}`);
+    // ✅ App 화면 전환 방식으로 넘김
+    onRandomStation(String(stationId), String(data.episode_id));
   };
 
   const handleRandomStation = async () => {
@@ -101,7 +107,13 @@ export function MainScreen({
     const data = await res.json().catch(() => ({} as any));
     if (!res.ok) throw new Error(data?.message ?? "random_failed");
 
-    navigate(`${episodePathBase}/${data.episode_id}`);
+    // 보통 station_id 같이 내려오는 경우가 많음
+    const stationId = data.station_id;
+    const episodeId = data.episode_id;
+
+    if (!stationId || !episodeId) throw new Error("random_response_missing_ids");
+
+    onRandomStation(String(stationId), String(episodeId));
   };
 
   const handleSelectLine = (line: LineDTO) => {
@@ -177,7 +189,7 @@ export function MainScreen({
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                   className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
                 >
-                  <User className="w-4 h-4" />
+                  <UserIcon className="w-4 h-4" />
                   <span>{user.name}님</span>
                   <ChevronDown
                     className={`w-4 h-4 transition-transform ${isProfileDropdownOpen ? "rotate-180" : ""}`}
@@ -212,7 +224,7 @@ export function MainScreen({
                 onClick={onLoginClick}
                 className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
               >
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
                 <span>로그인</span>
               </button>
             )}
@@ -240,9 +252,7 @@ export function MainScreen({
             user={user}
             stationByName={stationByName}
             onPickEpisode={(stationId) => {
-              pickEpisodeByStationId(stationId).catch((e) => {
-                alert(e?.message ?? "pick_failed");
-              });
+              pickEpisodeByStationId(stationId).catch((e) => alert(e?.message ?? "pick_failed"));
             }}
           />
 

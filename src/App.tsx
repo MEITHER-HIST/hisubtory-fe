@@ -1,13 +1,19 @@
-import { useEffect, useState, useCallback } from "react";
-import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+// App.tsx
+import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
-
 import { MainScreen } from "./components/MainScreen";
 import { StoryScreen } from "./components/StoryScreen";
 import { MyPage } from "./components/MyPage";
 import { LoginModal } from "./components/LoginModal";
 
-type User = { name: string } | null;
+type Screen = "main" | "story" | "mypage";
+
+export type User = {
+  id: number;
+  username: string;
+  email: string;
+  name: string; // UI에서 name만 쓰는 곳 대비
+};
 
 function getCookie(name: string) {
   const v = `; ${document.cookie}`;
@@ -17,142 +23,137 @@ function getCookie(name: string) {
 }
 
 async function ensureCsrf() {
-  await fetch("/api/accounts/csrf/", { method: "GET", credentials: "include" });
+  await fetch("/api/accounts/csrf/", {
+    method: "GET",
+    credentials: "include",
+  });
 }
 
-function StoryRoute({ user }: { user: User }) {
-  const navigate = useNavigate();
-  const { id } = useParams();
-
-  return (
-    <StoryScreen
-      user={user}
-      stationId={null}
-      episodeId={id ?? null}
-      onBack={() => navigate(-1)}
-    />
-  );
-}
-
-function MyPageRoute({
-  user,
-  onRequireLogin,
-}: {
-  user: User;
-  onRequireLogin: () => void;
-}) {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!user) {
-      onRequireLogin();
-      navigate("/", { replace: true });
-    }
-  }, [user, onRequireLogin, navigate]);
-
-  if (!user) return null;
-
-  return (
-    <MyPage
-      user={user}
-      onBack={() => navigate("/")}
-      onEpisodeClick={(episodeId: string) => navigate(`/episodes/${episodeId}`)}
-    />
-  );
+async function postForm(url: string, body: Record<string, string>) {
+  await ensureCsrf();
+  const csrftoken = getCookie("csrftoken") ?? "";
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      "X-CSRFToken": csrftoken,
+    },
+    body: new URLSearchParams(body).toString(),
+  });
+  return res;
 }
 
 export default function App() {
-  const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [user, setUser] = useState<User>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  const openLogin = useCallback(() => setIsLoginModalOpen(true), []);
+  const [currentScreen, setCurrentScreen] = useState<Screen>("main");
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
 
-  // 세션 복원
+  // ✅ 새로고침/재접속 시 세션이 살아있으면 me로 복구
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/pages/v1/auth/me/", { credentials: "include" });
-        const data = await res.json();
-        if (data?.is_authenticated) setUser({ name: data.username });
-        else setUser(null);
+        const res = await fetch("/api/accounts/me/", { credentials: "include" });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          const u: User = {
+            id: data.id,
+            username: data.username,
+            email: data.email ?? "",
+            name: data.username, // 필요하면 다른 표시명 규칙으로 변경
+          };
+          setUser(u);
+        } else {
+          setUser(null);
+        }
       } catch {
         setUser(null);
       }
     })();
   }, []);
 
-  const handleLogin = async (email: string, password: string) => {
-  await ensureCsrf();
-  const csrftoken = getCookie("csrftoken") ?? "";
+  // ✅ LoginModal에서 로그인 성공 후 user 객체를 넘겨받도록 변경
+  const handleLogin = (u: User) => {
+    setUser(u);
+    setIsLoginModalOpen(false);
+  };
 
-  const body = new URLSearchParams();
-  body.set("email", email);
-  body.set("password", password);
-
-  const res = await fetch("/api/accounts/login/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-CSRFToken": csrftoken,
-    },
-    credentials: "include",
-    body: body.toString(),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message ?? "login_failed");
-
-  // 로그인 성공 후 user 세팅
-  setUser({ name: data.username });
-  setIsLoginModalOpen(false);
-};
-
+  // ✅ 서버 세션 로그아웃까지 처리
   const handleLogout = async () => {
-  await ensureCsrf();
-  const csrftoken = getCookie("csrftoken") ?? "";
-  await fetch("/api/accounts/logout/", {
-    method: "POST",
-    headers: { "X-CSRFToken": csrftoken },
-    credentials: "include",
-  });
-  setUser(null);
-};
+    try {
+      await postForm("/api/accounts/logout/", {});
+    } catch {
+      // 네트워크 에러여도 UI는 로그아웃 처리
+    } finally {
+      setUser(null);
+      setCurrentScreen("main");
+    }
+  };
+
+  const handleStationClick = (stationId: string) => {
+    setSelectedStationId(stationId);
+    setSelectedEpisodeId(null);
+    setCurrentScreen("story");
+  };
+
+  const handleRandomStation = (stationId: string, episodeId: string) => {
+    setSelectedStationId(stationId);
+    setSelectedEpisodeId(episodeId);
+    setCurrentScreen("story");
+  };
+
+  const handleBackToMain = () => {
+    setCurrentScreen("main");
+    setSelectedStationId(null);
+    setSelectedEpisodeId(null);
+  };
 
   const handleGoToMyPage = () => {
     if (!user) {
-      openLogin();
+      setIsLoginModalOpen(true);
       return;
     }
-    navigate("/mypage");
+    setCurrentScreen("mypage");
+  };
+
+  const handleEpisodeClick = (episodeId: string) => {
+    const episode = require("./data/episodes").episodes.find((ep: any) => ep.id === episodeId);
+    if (episode) {
+      setSelectedStationId(episode.stationId);
+      setSelectedEpisodeId(episodeId);
+      setCurrentScreen("story");
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <MainScreen
-              user={user}
-              onLoginClick={openLogin}
-              onLogout={handleLogout}
-              onGoToMyPage={handleGoToMyPage}
-              episodePathBase="/episodes"
-            />
-          }
+      {currentScreen === "main" && (
+        <MainScreen
+          user={user}
+          onLoginClick={() => setIsLoginModalOpen(true)}
+          onLogout={handleLogout}
+          onStationClick={handleStationClick}
+          onRandomStation={handleRandomStation}
+          onGoToMyPage={handleGoToMyPage}
         />
-        <Route path="/episodes/:id" element={<StoryRoute user={user} />} />
-        <Route path="/mypage" element={<MyPageRoute user={user} onRequireLogin={openLogin} />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      )}
+
+      {currentScreen === "story" && (
+        <StoryScreen user={user} stationId={selectedStationId} episodeId={selectedEpisodeId} onBack={handleBackToMain} />
+      )}
+
+      {currentScreen === "mypage" && (
+        <MyPage user={user} onBack={handleBackToMain} onEpisodeClick={handleEpisodeClick} />
+      )}
 
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        onLogin={handleLogin} // (identifier, password)로 받게 LoginModal도 수정 필요
+        onLogin={handleLogin}
       />
-
       <Toaster />
     </div>
   );
