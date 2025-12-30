@@ -1,6 +1,5 @@
 // MainScreen.tsx
 import { useState,useEffect, useMemo } from 'react';
-import { useNavigate } from "react-router-dom";
 import { Shuffle, User as UserIcon, Menu, ChevronDown } from 'lucide-react';
 import { SubwayMap } from './SubwayMap';
 import type { User } from "../App";
@@ -44,9 +43,7 @@ export function MainScreen({
   onGoToMyPage,
   onStationClick,
   onRandomStation,
-  episodePathBase = "/episodes",
 }: MainScreenProps) {
-  const navigate = useNavigate();
 
   const [isLineDropdownOpen, setIsLineDropdownOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
