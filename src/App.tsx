@@ -1,4 +1,3 @@
-// App.tsx
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { MainScreen } from "./components/MainScreen";
@@ -12,7 +11,7 @@ export type User = {
   id: number;
   username: string;
   email: string;
-  name: string; // UI에서 name만 쓰는 곳 대비
+  name: string;
 };
 
 function getCookie(name: string) {
@@ -52,7 +51,6 @@ export default function App() {
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
 
-  // ✅ 새로고침/재접속 시 세션이 살아있으면 me로 복구
   useEffect(() => {
     (async () => {
       try {
@@ -63,7 +61,7 @@ export default function App() {
             id: data.id,
             username: data.username,
             email: data.email ?? "",
-            name: data.username, // 필요하면 다른 표시명 규칙으로 변경
+            name: data.username,
           };
           setUser(u);
         } else {
@@ -75,18 +73,16 @@ export default function App() {
     })();
   }, []);
 
-  // ✅ LoginModal에서 로그인 성공 후 user 객체를 넘겨받도록 변경
   const handleLogin = (u: User) => {
     setUser(u);
     setIsLoginModalOpen(false);
   };
 
-  // ✅ 서버 세션 로그아웃까지 처리
   const handleLogout = async () => {
     try {
       await postForm("/api/accounts/logout/", {});
     } catch {
-      // 네트워크 에러여도 UI는 로그아웃 처리
+      // 에러 무시
     } finally {
       setUser(null);
       setCurrentScreen("main");
@@ -119,13 +115,14 @@ export default function App() {
     setCurrentScreen("mypage");
   };
 
+  // ✅ [수정] 마이페이지에서 에피소드 클릭 시 처리
+  // 더 이상 로컬 require를 사용하지 않고 넘겨받은 episodeId를 상태에 저장합니다.
   const handleEpisodeClick = (episodeId: string) => {
-    const episode = require("./data/episodes").episodes.find((ep: any) => ep.id === episodeId);
-    if (episode) {
-      setSelectedStationId(episode.stationId);
-      setSelectedEpisodeId(episodeId);
-      setCurrentScreen("story");
-    }
+    // DB 기반 시스템이므로 local data 조회가 필요 없습니다.
+    // StoryScreen 컴포넌트가 episodeId를 받아 서버에서 데이터를 직접 가져올 것입니다.
+    setSelectedEpisodeId(episodeId);
+    setSelectedStationId(null); // 특정 에피소드 기반일 때는 역 ID를 초기화하거나 무시
+    setCurrentScreen("story");
   };
 
   return (
@@ -158,10 +155,7 @@ export default function App() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        onLogin={(u) => {
-          setUser(u);
-          setIsLoginModalOpen(false);
-        }}
+        onLogin={handleLogin}
       />
       <Toaster />
     </div>
