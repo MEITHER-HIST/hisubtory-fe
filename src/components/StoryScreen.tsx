@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, Bookmark, BookmarkCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { User } from "../App";
-import { getUserProgress, markEpisodeAsViewed, toggleSavedEpisode } from "../utils/localStorage";
 
 interface CutDTO {
   order: number | null;
@@ -20,13 +19,15 @@ interface EpisodeDTO {
 
 interface StoryScreenProps {
   user: User | null;
-  stationId: string | null;   // (지금은 크게 안 씀. 헤더 표시 정도)
-  episodeId: string | null;   // ✅ 이걸로 detail API 호출
+  stationId: string | null;
+  episodeId: string | null;
   onBack: () => void;
 }
 
 export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenProps) {
-  const [progress, setProgress] = useState(getUserProgress());
+  // ✅ 로컬 스토리지 대신 서버 상태 관리
+  const [isSaved, setIsSaved] = useState(false);
+  const [isViewed, setIsViewed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,8 +37,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
   useEffect(() => {
     setError(null);
     setLoading(true);
-    setEpisode(null);
-    setCuts([]);
 
     if (!episodeId) {
       setError("episodeId가 없습니다.");
@@ -47,147 +46,126 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
 
     (async () => {
       try {
+        // ✅ 에피소드 상세 및 북마크 여부를 한 번에 가져옴
         const res = await fetch(`/api/pages/v1/episode/detail/?episode_id=${episodeId}`, {
           method: "GET",
           credentials: "include",
         });
-        const data = await res.json().catch(() => ({} as any));
-        if (!res.ok || !data?.success) throw new Error(data?.message ?? "episode_detail_failed");
+        
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.success) throw new Error(data?.message ?? "데이터 로드 실패");
 
         setEpisode(data.episode as EpisodeDTO);
         setCuts((data.cuts ?? []) as CutDTO[]);
+        
+        // ✅ 서버 DB 기반 상태 설정 (백엔드 EpisodeDetailAPIView가 주는 값)
+        setIsSaved(data.is_bookmarked ?? false);
+        setIsViewed(true); // 상세 페이지를 열었으므로 시청 완료로 간주
 
-        // 로그인 사용자면 “봤음” 기록
-        if (user) {
-          markEpisodeAsViewed(String(episodeId));
-          setProgress(getUserProgress());
-        }
       } catch (e: any) {
-        setError(e?.message ?? "episode_load_failed");
+        setError(e?.message ?? "에피소드 로드 실패");
       } finally {
         setLoading(false);
       }
     })();
   }, [episodeId, user]);
 
-  const handleSaveToggle = () => {
-    if (!episodeId || !user) return;
-    toggleSavedEpisode(String(episodeId));
-    setProgress(getUserProgress());
+  // ✅ [수정] 서버 DB에 북마크 저장/삭제 요청
+  const handleSaveToggle = async () => {
+    if (!episodeId || !user) {
+      toast.error("로그인이 필요한 서비스입니다.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/stories/bookmark/${episodeId}/`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setIsSaved(data.is_bookmarked); // 서버에서 반환한 최신 상태 반영
+        toast.success(data.is_bookmarked ? "내 이야기에 저장되었습니다!" : "저장이 취소되었습니다.");
+      } else {
+        throw new Error("서버 응답 오류");
+      }
+    } catch (err) {
+      toast.error("저장 처리 중 오류가 발생했습니다.");
+    }
   };
 
   const handleNewEpisode = () => {
-    // 이건 “다음 에피소드 추천 API” 만들면 붙이는 게 깔끔
-    toast("새 에피소드 추천 API를 붙이면 여기서 다음 편을 열 수 있어요!");
+    toast("새 에피소드 추천 기능을 준비 중입니다!");
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">에피소드를 불러오는 중...</p>
+  // ... (로딩/에러 UI는 동일) ...
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-600">불러오는 중...</p></div>;
+  if (error || !episode) return (
+    <div className="min-h-screen flex items-center justify-center px-6">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-lg">
+        <p className="text-gray-900 mb-4">{error}</p>
+        <button onClick={onBack} className="w-full py-3 bg-blue-600 text-white rounded-lg">메인으로</button>
       </div>
-    );
-  }
-
-  if (error || !episode) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-6">
-        <div className="bg-white rounded-2xl shadow-lg p-6 max-w-md w-full">
-          <p className="text-gray-900 mb-2">에피소드를 열 수 없어요.</p>
-          <p className="text-gray-600 text-sm mb-4">{error ?? "unknown_error"}</p>
-          <button
-            onClick={onBack}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            메인으로 돌아가기
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const isSaved = progress.savedEpisodes.includes(String(episodeId));
-  const isViewed = progress.viewedEpisodes.includes(String(episodeId));
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-700">
             <ArrowLeft className="w-5 h-5" />
             <span>돌아가기</span>
           </button>
-          <h1 className="text-blue-600 tracking-wider">HISUBTORY</h1>
+          <h1 className="text-blue-600 font-bold">HISUBTORY</h1>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-600 rounded-full" />
-            <span className="text-gray-900">{episode.station_name ?? stationId ?? ""}</span>
+            <span className="text-gray-900 font-medium">{episode.station_name}</span>
           </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-          <h2 className="text-gray-900 mb-2">{episode.episode_title}</h2>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-2 h-2 bg-blue-600 rounded-full" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{episode.episode_title}</h2>
+          <div className="flex items-center gap-3">
             <span className="text-gray-600">{episode.station_name}역</span>
             {isViewed && user && (
-              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">✓ 봤음</span>
+              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">✓ 읽음</span>
             )}
           </div>
         </div>
 
-        {cuts.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-            <p className="text-gray-600">표시할 컷이 아직 없어요.</p>
-          </div>
-        ) : (
-          cuts.map((c, idx) => (
-            <div key={`${c.order ?? idx}`} className="mb-6">
-              <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
-                <div className="relative h-96 bg-gray-200">
-                  {c.image_url ? (
-                    <img src={c.image_url} alt={`컷 ${c.order ?? idx + 1}`} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-                      이미지 URL 없음
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-                <p className="text-gray-700 leading-relaxed text-lg">{c.caption}</p>
-              </div>
+        {cuts.map((c, idx) => (
+          <div key={idx} className="mb-8">
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
+              <img src={c.image_url || ""} alt="" className="w-full h-auto object-cover min-h-[300px]" />
             </div>
-          ))
-        )}
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <p className="text-gray-800 text-lg leading-relaxed">{c.caption}</p>
+            </div>
+          </div>
+        ))}
 
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 sticky bottom-6">
           {user ? (
-            <div className="flex gap-3">
+            <div className="flex gap-4">
               <button
                 onClick={handleSaveToggle}
-                className={`flex-1 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 border-2 ${
-                  isSaved ? "bg-blue-50 text-blue-600 border-blue-600 hover:bg-blue-100" : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                className={`flex-1 py-4 rounded-xl flex items-center justify-center gap-2 font-bold border-2 transition-all ${
+                  isSaved ? "bg-blue-50 border-blue-600 text-blue-600" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
                 }`}
               >
-                {isSaved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
+                {isSaved ? <BookmarkCheck className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />}
                 {isSaved ? "저장됨" : "저장하기"}
               </button>
-
-              <button
-                onClick={handleNewEpisode}
-                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2"
-              >
-                <RefreshCw className="w-5 h-5" />
-                새 에피소드 보기
+              <button onClick={handleNewEpisode} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700">
+                <RefreshCw className="w-6 h-6" />
+                다른 이야기
               </button>
             </div>
           ) : (
-            <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-800 text-sm text-center">💡 로그인하면 에피소드를 저장하고 진행상황을 기록할 수 있어요!</p>
-            </div>
+            <p className="text-center text-gray-500 text-sm">로그인 후 이야기를 저장해보세요!</p>
           )}
         </div>
       </main>
