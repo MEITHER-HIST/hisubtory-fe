@@ -1,5 +1,6 @@
 import { ArrowLeft, Bookmark, Check, Clock, Library as LibraryIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { mediaUrl } from "../utils/mediaUrl";
 
 interface MyPageProps {
   user: { name: string; username: string } | null;
