@@ -15,32 +15,28 @@ async function ensureCsrf() {
   });
 }
 
-async function postForm(url: string, body: Record<string, string>) {
+/**
+ * 전송 방식을 JSON으로 변경하여 장고의 DRF(request.data)와 호환성을 높였습니다.
+ */
+async function postJSON(url: string, body: Record<string, any>) {
   await ensureCsrf();
   const csrftoken = getCookie("csrftoken") ?? "";
 
   const res = await fetch(url, {
     method: "POST",
-    credentials: "include",
+    credentials: "include", // ✅ 세션 쿠키 유지를 위해 필수
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
       "X-CSRFToken": csrftoken,
     },
-    body: new URLSearchParams(body),
+    body: JSON.stringify(body),
   });
 
-  // ✅ 400 뜰 때 이유 확인하려고 에러 바디까지 읽어줌
   const data = await res.json().catch(() => ({}));
+  
   if (!res.ok) {
-    console.log("API ERROR:", data);
-    throw new Error(data?.message ?? "request_failed");
-  }
-
-  if (!res.ok) {
-    const msg =
-      data?.message ||
-      (data?.errors ? JSON.stringify(data.errors) : null) ||
-      "request_failed";
+    console.error("API ERROR DETAIL:", data);
+    const msg = data?.message || "요청에 실패했습니다.";
     throw new Error(msg);
   }
   
@@ -48,23 +44,33 @@ async function postForm(url: string, body: Record<string, string>) {
 }
 
 export const authApi = {
+  // ✅ login 시 'username'과 'email'을 동시에 보내거나 장고 뷰에 맞춰 username으로 전달
   login: (email: string, password: string) =>
-    postForm("/api/accounts/login/", { email, password }),
+    postJSON("/api/accounts/login/", { 
+      username: email, // 장고의 authenticate는 기본적으로 'username' 키를 찾습니다.
+      email: email,
+      password: password 
+    }),
 
   signup: (username: string, email: string, password: string, password2: string) =>
-    postForm("/api/accounts/signup/", {
+    postJSON("/api/accounts/signup/", {
       username,
       email,
-      password1: password,
+      password,
       password2,
     }),
 
   me: async () => {
-    const res = await fetch("/api/accounts/me/", { credentials: "include" });
+    // ✅ me 호출 시에도 반드시 credentials 포함
+    const res = await fetch("/api/accounts/me/", { 
+      method: "GET",
+      credentials: "include" 
+    });
+    
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message ?? "not_logged_in");
+    if (!res.ok) throw new Error(data?.message || "not_logged_in");
     return data;
   },
 
-  logout: () => postForm("/api/accounts/logout/", {}),
+  logout: () => postJSON("/api/accounts/logout/", {}),
 };

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react'; // 중복 제거 및 단일화
+import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
@@ -54,18 +54,22 @@ export default defineConfig({
     outDir: 'build',
   },
   server: {
+    port: 5173,
     proxy: {
-      // ✅ 상세 설정 추가: 장고 세션 쿠키를 원활하게 주고받기 위해 changeOrigin 추가
+      // ✅ /api로 시작하는 모든 요청을 장고(8000)로 전달
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        // 필요 시 주석 해제: 프록시 로그를 터미널에서 확인하고 싶을 때
+        // configure: (proxy, _options) => {
+        //   proxy.on('error', (err, _req, _res) => console.log('proxy error', err));
+        // },
       },
-      // ✅ 미디어 파일(이미지 등)도 장고 서버에서 서빙한다면 추가
-      '/media': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      }
+      // ✅ 관리자 페이지 및 미디어 파일 대응
+      '/admin': { target: 'http://127.0.0.1:8000' },
+      '/static': { target: 'http://127.0.0.1:8000' },
+      '/media': { target: 'http://127.0.0.1:8000' },
     },
   },
 });
