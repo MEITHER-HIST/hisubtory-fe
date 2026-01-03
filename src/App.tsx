@@ -5,6 +5,7 @@ import { StoryScreen } from "./components/StoryScreen";
 import { MyPage } from "./components/MyPage";
 import { LoginModal } from "./components/LoginModal";
 
+// teampage 화면 정의 삭제
 type Screen = "main" | "story" | "mypage";
 
 export type User = {
@@ -12,6 +13,9 @@ export type User = {
   username: string;
   email: string;
   name: string;
+  is_leader_approved?: boolean;
+  leader_code?: string;
+  has_team?: boolean;
 };
 
 function getCookie(name: string) {
@@ -62,6 +66,9 @@ export default function App() {
             username: data.username,
             email: data.email ?? "",
             name: data.username,
+            is_leader_approved: data.is_leader_approved,
+            leader_code: data.leader_code,
+            has_team: data.has_team,
           };
           setUser(u);
         } else {
@@ -115,13 +122,9 @@ export default function App() {
     setCurrentScreen("mypage");
   };
 
-  // ✅ [수정] 마이페이지에서 에피소드 클릭 시 처리
-  // 더 이상 로컬 require를 사용하지 않고 넘겨받은 episodeId를 상태에 저장합니다.
   const handleEpisodeClick = (episodeId: string) => {
-    // DB 기반 시스템이므로 local data 조회가 필요 없습니다.
-    // StoryScreen 컴포넌트가 episodeId를 받아 서버에서 데이터를 직접 가져올 것입니다.
     setSelectedEpisodeId(episodeId);
-    setSelectedStationId(null); // 특정 에피소드 기반일 때는 역 ID를 초기화하거나 무시
+    setSelectedStationId(null);
     setCurrentScreen("story");
   };
 
@@ -149,7 +152,12 @@ export default function App() {
       )}
 
       {currentScreen === "mypage" && (
-        <MyPage user={user} onBack={handleBackToMain} onEpisodeClick={handleEpisodeClick} />
+        <MyPage 
+          user={user} 
+          onBack={handleBackToMain} 
+          onEpisodeClick={handleEpisodeClick}
+          /* onGoToTeam 인자 삭제됨 (마이페이지 내부 탭으로 통합) */
+        />
       )}
 
       <LoginModal
