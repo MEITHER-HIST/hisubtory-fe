@@ -112,7 +112,7 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
               {showForm === 'MEMBER' && (
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400">팀장 코드</label>
-                  <input className="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 text-sm outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="6자리 공유 코드 입력" required value={formData.target_leader_code} onChange={e => setFormData({...formData, target_leader_code: e.target.value})} />
+                  <input className="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 text-sm outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="8자리 공유 코드 입력" required value={formData.target_leader_code} onChange={e => setFormData({...formData, target_leader_code: e.target.value})} />
                 </div>
               )}
               <div className="space-y-1">
