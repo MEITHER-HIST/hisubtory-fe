@@ -3,6 +3,19 @@ import { ArrowLeft, Bookmark, BookmarkCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { User } from "../App";
 
+// 호선별 색상 정의
+const LINE_COLORS: Record<string, string> = {
+  "1": "#0052A4",
+  "2": "#00A84D",
+  "3": "#EF7C1C", 
+  "4": "#00A5DE",
+  "5": "#996CAC",
+  "6": "#CD7C2F",
+  "7": "#747F28",
+  "8": "#E6186C",
+  "9": "#BB8336",
+};
+
 interface CutDTO {
   cut_id: number;
   image_url: string | null;
@@ -15,9 +28,10 @@ interface EpisodeDTO {
   episode_num: number;
   episode_title: string;
   webtoon_title: string;
-  station_name: string; // "도곡" 등 역 이름
+  station_name: string;
   webtoon_id: number;
   is_viewed: boolean;
+  line: string; 
 }
 
 interface StoryScreenProps {
@@ -65,30 +79,10 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
           setCuts(data.cuts || []);
           setIsSaved(data.is_bookmarked || false);
           setIsViewed(data.episode.is_viewed || false);
-          
-          // ✅ [역 이름 저장 로직]
-          // 서버에서 내려온 station_name을 로컬 스토리지에 저장
-          const targetStationName = data.episode.station_name;
-          
-          if (targetStationName) {
-            // '역' 글자가 붙어있을 수 있으므로 제거하여 저장 (비교 일관성)
-            const cleanName = targetStationName.replace(/역$/, "");
-            const saved = localStorage.getItem('viewed_stations');
-            let viewedList: string[] = saved ? JSON.parse(saved) : [];
-            
-            if (!viewedList.includes(cleanName)) {
-              viewedList.push(cleanName);
-              localStorage.setItem('viewed_stations', JSON.stringify(viewedList));
-              console.log(`[LOCAL STORAGE] 역 이름 '${cleanName}' 저장 완료`);
-            }
-          }
-
-          console.log("[DEBUG] 로드 완료:", data.episode.episode_title);
         } else {
           throw new Error(data.message || "데이터를 가져오지 못했습니다.");
         }
       } catch (e: any) {
-        console.error("[DEBUG-FRONT] 로드 실패:", e);
         setError(e.message);
       } finally {
         setLoading(false);
@@ -114,8 +108,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
         const data = await res.json();
         setIsSaved(data.is_bookmarked);
         toast.success(data.is_bookmarked ? "내 이야기에 저장되었습니다!" : "저장이 취소되었습니다.");
-      } else {
-        throw new Error("서버 응답 오류");
       }
     } catch (err) {
       toast.error("저장 처리 중 오류가 발생했습니다.");
@@ -133,73 +125,97 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
   );
 
   if (error || !episode) return (
-    <div className="min-h-screen flex items-center justify-center px-6">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-lg text-center">
+    <div className="min-h-screen flex items-center justify-center px-6 text-center">
+      <div>
         <p className="text-gray-900 mb-6 font-medium">{error || "에피소드를 불러올 수 없습니다."}</p>
-        <button onClick={onBack} className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold">메인으로</button>
+        <button onClick={onBack} className="px-8 py-3 bg-blue-600 text-white rounded-lg font-bold">메인으로</button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gray-50/50">
       <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">돌아가기</span>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
+          
+          {/* 1. 왼쪽: 돌아가기 버튼 (크기 및 굵기 상향) */}
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors z-10">
+            <ArrowLeft className="w-6 h-6" />
+            <span className="font-black text-base hidden sm:inline">돌아가기</span>
           </button>
-          <h1 className="text-blue-600 font-bold text-lg tracking-tight">HISUBTORY</h1>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-900 font-semibold bg-gray-100 px-3 py-1 rounded-lg text-sm">{episode.station_name}</span>
+          
+          {/* 2. 중앙: 로고 */}
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-blue-600 font-bold text-xl tracking-widest z-0">
+            HISUBTORY
+          </h1>
+          
+          {/* 오른쪽 배지 영역: 초기 밸런스 복구 + '역' 추가 */}
+          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-100 shadow-sm z-10">
+            {/* 초기 디자인의 밸런스 좋은 동그라미 크기 (w-3 h-3) */}
+            <div 
+              className="w-3 h-3 rounded-full shrink-0" 
+              style={{ 
+                backgroundColor: LINE_COLORS[episode?.line || "3"] || "#EF7C1C" 
+              }} 
+            />
+            
+            {/* 역 이름 뒤에 '역'을 붙이는 로직 적용 */}
+            <span className="text-gray-900 font-bold text-sm tracking-tight">
+              {episode?.station_name.replace(/역$/, "")}역
+            </span>
           </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        {/* 상단 제목 카드 */}
+        <div className="bg-white rounded-3xl shadow-sm p-8 mb-8 border border-gray-100">
+          <h2 className="text-3xl font-black text-gray-900 mb-3 leading-tight">
             {episode.webtoon_title}
           </h2>
           <div className="flex items-center gap-3">
-            <span className="text-gray-500 font-medium">{episode.station_name}역의 이야기</span>
+            <span className="text-gray-500 font-bold">{episode.station_name}역의 이야기</span>
             {isViewed && user && (
-              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
-                ✓ 읽음
+              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black">
+                ✓ 시청 완료
               </span>
             )}
           </div>
         </div>
 
+        {/* 컷 리스트 */}
         {cuts.length > 0 ? (
           cuts.map((c, idx) => (
-            <div key={idx} className="mb-10">
-              <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
+            <div key={idx} className="mb-12">
+              <div className="bg-white rounded-3xl shadow-md overflow-hidden mb-6 border border-gray-100">
                 <img src={c.image_url || ""} alt={`Cut ${idx + 1}`} className="w-full h-auto object-cover min-h-[300px]" />
               </div>
-              <div className="bg-white rounded-2xl shadow-lg p-8">
-                <p className="text-gray-800 text-lg leading-relaxed font-medium">{c.caption}</p>
+              <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+                <p className="text-gray-800 text-lg leading-relaxed font-bold">{c.caption}</p>
               </div>
             </div>
           ))
         ) : (
-          <div className="text-center py-20 bg-white rounded-2xl shadow-inner border-2 border-dashed border-gray-200">
-            <p className="text-gray-400">등록된 장면이 없습니다.</p>
+          <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
+            <p className="text-gray-400 font-bold">등록된 장면이 없습니다.</p>
           </div>
         )}
 
-        <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-6 sticky bottom-6 mt-12 border border-white">
+        {/* 하단 플로팅 액션 바 */}
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-6 sticky bottom-6 mt-16 border border-gray-100">
           <div className="flex gap-4">
             <button
               onClick={handleSaveToggle}
-              className={`flex-1 py-4 rounded-xl flex items-center justify-center gap-2 font-bold border-2 transition-all duration-200 ${
-                isSaved ? "bg-blue-50 border-blue-600 text-blue-600" : "bg-white border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-500"
+              className={`flex-1 py-4 rounded-2xl flex items-center justify-center gap-2 font-black transition-all duration-200 ${
+                isSaved 
+                  ? "bg-blue-50 text-blue-600 border-2 border-blue-600" 
+                  : "bg-gray-50 text-gray-400 border-2 border-transparent hover:border-blue-200 hover:text-blue-500"
               }`}
             >
               {isSaved ? <BookmarkCheck className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />}
-              {isSaved ? "저장됨" : "저장하기"}
+              {isSaved ? "내 보관함" : "저장하기"}
             </button>
-            <button onClick={handleNewEpisode} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
+            <button onClick={handleNewEpisode} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg active:scale-95">
               <RefreshCw className="w-6 h-6" />
               다른 이야기
             </button>
