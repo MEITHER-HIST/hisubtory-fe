@@ -43,11 +43,11 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <p className="text-gray-600 mb-4">로그인이 필요합니다</p>
-          <button onClick={onBack} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            메인으로 돌아가기
+          <button onClick={onBack} className="px-6 py-3 bg-blue-600 text-white rounded-lg">
+            돌아가기
           </button>
         </div>
       </div>
@@ -55,17 +55,16 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-bold text-blue-600">기록을 불러오는 중...</div>;
+    return <div className="min-h-screen flex items-center justify-center font-bold text-blue-600 bg-white">기록을 불러오는 중...</div>;
   }
 
-  // 공통 카드 렌더링 함수
   const renderStoryCard = (episode: HistoryItem) => (
     <button
       key={episode.id}
       onClick={() => onEpisodeClick(episode.id)}
-      className="bg-white rounded-2xl p-4 hover:bg-blue-50 transition-all text-left border border-gray-100 hover:border-blue-200 shadow-sm group flex flex-col h-full"
+      className="bg-white rounded-2xl p-4 hover:bg-blue-50 transition-all text-left border border-gray-100 shadow-sm group flex flex-col h-full"
     >
-      <div className="aspect-video bg-gray-100 rounded-xl mb-4 overflow-hidden shadow-inner relative flex-shrink-0">
+      <div className="aspect-video bg-gray-100 rounded-xl mb-4 overflow-hidden relative flex-shrink-0">
         {episode.imageUrl ? (
           <img 
             src={episode.imageUrl} 
@@ -76,14 +75,14 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
           <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">NO IMAGE</div>
         )}
         <div className="absolute top-2 left-2">
-          <span className="px-2 py-1 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold rounded-lg">
+          <span className="px-2 py-1 bg-black/60 text-white text-[10px] font-bold rounded-lg">
             {episode.stationName}
           </span>
         </div>
       </div>
       <div className="flex flex-col flex-1">
         <h4 className="text-gray-900 font-bold mb-1 line-clamp-1">{episode.title}</h4>
-        <p className="text-gray-500 text-xs line-clamp-2 leading-relaxed flex-1">
+        <p className="text-gray-500 text-xs line-clamp-2 leading-relaxed">
           {episode.content || `${episode.stationName}역의 역사 이야기입니다.`}
         </p>
       </div>
@@ -91,83 +90,85 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors font-bold">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* ✅ 수정 핵심 1: 배너(Header) 
+        - fixed가 아닌 sticky를 사용하여 레이아웃 흐름을 유지하되 상단 고정
+        - bg-white와 z-50으로 본문이 위로 올라오는 것을 원천 차단
+      */}
+      <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-blue-600 font-bold transition-colors">
             <ArrowLeft className="w-5 h-5" />
             <span>돌아가기</span>
           </button>
           <h1 className="text-blue-600 font-bold tracking-widest text-xl">HISUBTORY</h1>
-          <div className="w-24"></div>
+          <div className="w-24"></div> 
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* 복구된 상단 프로필 카드 스타일 */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6 border border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">{user.name}님의 여행 기록</h2>
-          <div className="flex gap-6 mt-4">
-            <div className="flex items-center gap-2">
+      {/* ✅ 수정 핵심 2: 메인 영역(Main)
+        - pt-8 정도로 적당한 여백을 주어 배너 바로 아래에서 자연스럽게 시작
+      */}
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
+        
+        {/* 상단 프로필/여행 기록 카드 */}
+        <div className="bg-white rounded-2xl shadow-md p-8 mb-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">{user.name}님의 여행 기록</h2>
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-xl border border-green-100">
               <Check className="w-5 h-5 text-green-600" />
-              <span className="text-gray-700 font-medium">본 에피소드: {recentStories.length}개</span>
+              <span className="text-gray-700 font-bold">시청 완료: {recentStories.length}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
               <Bookmark className="w-5 h-5 text-blue-600" />
-              <span className="text-gray-700 font-medium">저장한 에피소드: {myStories.length}개</span>
+              <span className="text-gray-700 font-bold">내 보관함: {myStories.length}</span>
             </div>
           </div>
         </div>
 
-        {/* 탭 메뉴 및 콘텐츠 영역 */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-          <div className="flex border-b border-gray-200">
+        {/* 탭 메뉴 섹션 */}
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+          <div className="flex border-b border-gray-200 bg-gray-50/50">
             <button
               onClick={() => setActiveTab('recent')}
-              className={`flex-1 py-4 flex items-center justify-center gap-2 font-bold transition-all ${activeTab === 'recent' ? 'bg-blue-50 text-blue-600 border-b-4 border-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`flex-1 py-4 flex items-center justify-center gap-2 font-bold transition-all ${
+                activeTab === 'recent' 
+                ? 'bg-white text-blue-600 border-b-4 border-blue-600' 
+                : 'text-gray-500 hover:bg-gray-100'
+              }`}
             >
               <Clock className="w-5 h-5" />
               <span>최근 본 이야기</span>
             </button>
             <button
               onClick={() => setActiveTab('saved')}
-              className={`flex-1 py-4 flex items-center justify-center gap-2 font-bold transition-all ${activeTab === 'saved' ? 'bg-blue-50 text-blue-600 border-b-4 border-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`flex-1 py-4 flex items-center justify-center gap-2 font-bold transition-all ${
+                activeTab === 'saved' 
+                ? 'bg-white text-blue-600 border-b-4 border-blue-600' 
+                : 'text-gray-500 hover:bg-gray-100'
+              }`}
             >
               <LibraryIcon className="w-5 h-5" />
-              <span>내 이야기</span>
+              <span>내 보관함</span>
             </button>
           </div>
 
-          <div className="p-6">
-            {activeTab === 'recent' ? (
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">최근 시청 목록</h3>
-                {recentStories.length === 0 ? (
-                  <div className="text-center py-16">
-                    <Clock className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-                    <p className="text-gray-400 font-medium">아직 본 에피소드가 없습니다</p>
-                  </div>
+          <div className="p-6 bg-white">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {activeTab === 'recent' ? (
+                recentStories.length === 0 ? (
+                  <p className="col-span-full text-center py-20 text-gray-400 font-medium">시청 기록이 없습니다.</p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {recentStories.map(renderStoryCard)}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">저장된 컬렉션</h3>
-                {myStories.length === 0 ? (
-                  <div className="text-center py-16">
-                    <LibraryIcon className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-                    <p className="text-gray-400 font-medium">저장한 에피소드가 없습니다</p>
-                  </div>
+                  recentStories.map(renderStoryCard)
+                )
+              ) : (
+                myStories.length === 0 ? (
+                  <p className="col-span-full text-center py-20 text-gray-400 font-medium">보관함이 비어있습니다.</p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {myStories.map(renderStoryCard)}
-                  </div>
-                )}
-              </div>
-            )}
+                  myStories.map(renderStoryCard)
+                )
+              )}
+            </div>
           </div>
         </div>
       </main>

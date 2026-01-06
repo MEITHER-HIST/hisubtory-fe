@@ -3,7 +3,14 @@ import { Shuffle, User as UserIcon, Menu, ChevronDown } from 'lucide-react';
 import { SubwayMap } from './SubwayMap';
 import type { User } from "../App";
 
-type StationDTO = { id: number; name: string; clickable: boolean; color: "green" | "gray"; is_viewed: boolean; has_story: boolean; };
+type StationDTO = { 
+  id: number; 
+  name: string; 
+  clickable: boolean; 
+  color: "green" | "gray"; 
+  is_viewed: boolean; 
+  has_story: boolean; 
+};
 
 interface MainScreenProps {
   user: User | null;
@@ -25,8 +32,30 @@ export function MainScreen({ user, onLoginClick, onLogout, onGoToMyPage, onStati
     try {
       const res = await fetch(`/api/pages/v1/main/?line=3`, { credentials: "include" });
       const data = await res.json();
+      
       if (data.success && data.stations) {
-        setStations(data.stations);
+        // 1. 로컬 저장소에서 시청한 역 '이름' 리스트 가져오기
+        const rawLocalViewed = localStorage.getItem('viewed_stations');
+        const localViewedNames: string[] = rawLocalViewed ? JSON.parse(rawLocalViewed) : [];
+        
+        const mergedStations = data.stations.map((s: StationDTO) => {
+          // 2. 서버 역 이름에서 '역' 제거 후 로컬 저장소와 대조
+          const cleanName = s.name.replace(/역$/, "");
+          const isLocallyViewed = localViewedNames.includes(cleanName);
+          
+          // 서버의 읽음 여부(로그인) OR 로컬 저장소 기록(비로그인)
+          const isActuallyViewed = s.is_viewed || isLocallyViewed;
+
+          return {
+            ...s,
+            is_viewed: isActuallyViewed,
+            color: isActuallyViewed ? "green" : "gray",
+            // 로그인 시: 스토리 있는 모든 역 / 비로그인 시: 본 역만
+            clickable: user ? s.has_story : isActuallyViewed
+          };
+        });
+
+        setStations(mergedStations);
         setShowRandomButton(data.show_random_button);
       }
     } catch (e) {
@@ -34,9 +63,9 @@ export function MainScreen({ user, onLoginClick, onLogout, onGoToMyPage, onStati
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  useEffect(() => { fetchMain(); }, [user, fetchMain]);
+  useEffect(() => { fetchMain(); }, [fetchMain]);
 
   const stationByName = useMemo(() => {
     const m = new Map<string | number, StationDTO>();
@@ -52,14 +81,20 @@ export function MainScreen({ user, onLoginClick, onLogout, onGoToMyPage, onStati
   const handleStationClick = async (stationId: number) => {
     try {
       setIsLoading(true);
-      // 1. 백엔드에 해당 역의 에피소드 정보 요청
       const res = await fetch(`/api/pages/v1/episode/pick/?station_id=${stationId}`, { credentials: "include" });
       const data = await res.json();
 
-      console.log("백엔드 응답 상세:", data); // 디버깅용
-
       if (data.success && data.episode_id) {
-        // 2. 성공 시 stationId와 받아온 episodeId를 함께 상위로 전달
+        // ✅ [핵심 추가] 비로그인 상태일 때 로컬 스토리지에 시청 기록 저장
+        if (!user) {
+          const localViewed: number[] = JSON.parse(localStorage.getItem('viewed_stations') || '[]');
+          if (!localViewed.includes(stationId)) {
+            localViewed.push(stationId);
+            localStorage.setItem('viewed_stations', JSON.stringify(localViewed));
+          }
+        }
+        
+        // 에피소드 페이지로 이동
         onStationClick(String(stationId), String(data.episode_id));
       } else {
         alert(data.message || "감상 가능한 에피소드가 없습니다.");
@@ -78,6 +113,7 @@ export function MainScreen({ user, onLoginClick, onLogout, onGoToMyPage, onStati
       const res = await fetch(`/api/pages/v1/episode/random/?line=3`, { credentials: "include" });
       const data = await res.json();
       if (res.ok && data.episode_id) {
+        // 랜덤 시에도 비로그인 기록을 남기고 싶다면 위 handleStationClick과 동일한 로직 추가 가능
         onRandomStation(String(data.station_name), String(data.episode_id));
       }
     } catch (err) {
@@ -119,6 +155,7 @@ export function MainScreen({ user, onLoginClick, onLogout, onGoToMyPage, onStati
             <SubwayMap 
               stationByName={stationByName} 
               onPickEpisode={handleStationClick} 
+              isLoggedIn={!!user} // ✅ 추가된 props: 로그인 여부 전달
             />
           ) : !isLoading && <div className="text-blue-600 font-bold">지하철 노선도를 불러오는 중...</div>}
           {isLoading && <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 rounded-3xl font-bold text-blue-600">처리 중...</div>}
