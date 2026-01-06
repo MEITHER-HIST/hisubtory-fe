@@ -18,11 +18,10 @@ jobs:
           node-version: 18
           cache: npm
 
-      - name: Install deps
-        run: npm ci
-
-      - name: Build (Vite -> dist/)
-        run: npm run build
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
 
       - name: Set up AWS CLI
         uses: aws-actions/configure-aws-credentials@v4
@@ -33,20 +32,17 @@ jobs:
 
       - name: Create deployment package
         run: |
-          BUNDLE="hisubFE-${{ github.sha }}.zip"
-          zip -r "$BUNDLE" appspec.yml scripts dist \
-            -x "**/.DS_Store" "**/__MACOSX/*" "**/node_modules/*" ".git/*"
-          echo "BUNDLE=$BUNDLE" >> $GITHUB_ENV
+          zip -r hisubFE-deploy.zip appspec.yml scripts build \
+            -x "**/.DS_Store" "**/__MACOSX/*"
 
       - name: Upload to S3
         run: |
-          aws s3 cp "$BUNDLE" "s3://${{ secrets.S3_BUCKET }}/fe/$BUNDLE"
+          aws s3 cp hisubFE-deploy.zip s3://${{ secrets.S3_BUCKET }}/hisubFE-deploy.zip
 
       - name: Deploy with CodeDeploy
         run: |
           aws deploy create-deployment \
             --application-name "${{ secrets.CODEDEPLOY_APPLICATION }}" \
             --deployment-group-name "${{ secrets.CODE_DEPLOYMENT_GROUP_FE }}" \
-            --file-exists-behavior OVERWRITE \
-            --s3-location bucket=${{ secrets.S3_BUCKET }},key=fe/$BUNDLE,bundleType=zip \
+            --s3-location bucket=${{ secrets.S3_BUCKET }},key=hisubFE-deploy.zip,bundleType=zip \
             --region ap-northeast-2
