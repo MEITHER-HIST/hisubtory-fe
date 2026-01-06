@@ -91,12 +91,13 @@ export default function App() {
 
   const handleStationClick = (stationId: string) => {
     setSelectedStationId(stationId);
-    setSelectedEpisodeId(null);
+    setSelectedEpisodeId(null); // 특정 역 클릭 시에는 에피소드를 null로 보내서 StoryScreen 내부에서 뽑게 함
     setCurrentScreen("story");
   };
 
-  const handleRandomStation = (stationId: string, episodeId: string) => {
-    setSelectedStationId(stationId);
+  // ✅ 랜덤 버튼 클릭 시 호출되는 함수
+  const handleRandomStation = (stationName: string, episodeId: string) => {
+    setSelectedStationId(stationName); // 역 이름을 ID 대신 넘겨서 UI 표시용으로 사용
     setSelectedEpisodeId(episodeId);
     setCurrentScreen("story");
   };
@@ -115,13 +116,9 @@ export default function App() {
     setCurrentScreen("mypage");
   };
 
-  // ✅ [수정] 마이페이지에서 에피소드 클릭 시 처리
-  // 더 이상 로컬 require를 사용하지 않고 넘겨받은 episodeId를 상태에 저장합니다.
   const handleEpisodeClick = (episodeId: string) => {
-    // DB 기반 시스템이므로 local data 조회가 필요 없습니다.
-    // StoryScreen 컴포넌트가 episodeId를 받아 서버에서 데이터를 직접 가져올 것입니다.
     setSelectedEpisodeId(episodeId);
-    setSelectedStationId(null); // 특정 에피소드 기반일 때는 역 ID를 초기화하거나 무시
+    setSelectedStationId(null); 
     setCurrentScreen("story");
   };
 
@@ -140,10 +137,10 @@ export default function App() {
 
       {currentScreen === "story" && (
         <StoryScreen
-          key={`${selectedStationId ?? "none"}:${selectedEpisodeId ?? "none"}`}
+          key={`story-${selectedEpisodeId}`}
           user={user}
           stationId={selectedStationId}
-          episodeId={selectedEpisodeId}
+          episodeId={selectedEpisodeId} // 이 ID가 stories API로 전달되어야 함
           onBack={handleBackToMain}
         />
       )}
@@ -157,7 +154,7 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onLogin={handleLogin}
       />
-      <Toaster />
+      <Toaster position="top-center" richColors />
     </div>
   );
 }
