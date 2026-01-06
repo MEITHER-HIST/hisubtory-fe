@@ -36,50 +36,55 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
   const [episode, setEpisode] = useState<EpisodeDTO | null>(null);
   const [cuts, setCuts] = useState<CutDTO[]>([]);
 
-  useEffect(() => {
-    // 1️⃣ 초기화: 데이터 로드 전에는 배지를 끄고 로딩 상태로 진입
-    setIsViewed(false);
-    setError(null);
-    setLoading(true);
+useEffect(() => {
+  // 에피소드 ID가 없으면 중단
+  if (!episodeId) {
+    setError("에피소드 정보가 없습니다.");
+    setLoading(false);
+    return;
+  }
 
-    if (!episodeId) {
-      setError("에피소드 정보가 없습니다.");
-      setLoading(false);
-      return;
-    }
+  const fetchDetail = async () => {
+    try {
+      // 1️⃣ 로딩 시작 시점에만 상태 초기화
+      setLoading(true);
+      setError(null);
 
-    (async () => {
-      try {
-        const res = await fetch(`/api/stories/episode/detail/?episode_id=${episodeId}`, {
-          method: "GET",
-          credentials: "include",
-        });
-        
-        const data = await res.json();
-        if (!res.ok || !data?.success) throw new Error(data?.message ?? "로드 실패");
+      const res = await fetch(`/api/stories/episode/detail/?episode_id=${episodeId}`, {
+        method: "GET",
+        credentials: "include",
+      });
 
-        // 2️⃣ 데이터 매핑 (백엔드 Response 구조에 맞춤)
-        const fetchedEpisode = data.episode as EpisodeDTO;
-        setEpisode(fetchedEpisode);
-        
-        // 백엔드에서 준 cuts 리스트를 상태에 저장 (사진 출력 핵심)
-        setCuts((data.cuts ?? []) as CutDTO[]);
-        setIsSaved(data.is_bookmarked ?? false);
-
-        // 3️⃣ 읽음 상태 결정 (서버가 False를 주면 False로 설정됨)
-        setIsViewed(fetchedEpisode.is_viewed);
-        
-        console.log("[DEBUG-FRONT] 서버 응답 - 읽음 상태:", fetchedEpisode.is_viewed);
-        console.log("[DEBUG-FRONT] 서버 응답 - 사진 개수:", data.cuts?.length);
-
-      } catch (e: any) {
-        console.error("[DEBUG-FRONT] 데이터 로드 에러:", e);
-        setError(e?.message);
-      } finally {
-        setLoading(false);
+      // 서버 응답 에러 핸들링
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `서버 에러 (${res.status})`);
       }
-    })();
-  }, [episodeId, user]);
+
+      const data = await res.json();
+      
+      if (data.success) {
+        // 2️⃣ 데이터 매핑
+        setEpisode(data.episode);
+        setCuts(data.cuts || []);
+        setIsSaved(data.is_bookmarked || false);
+        setIsViewed(data.episode.is_viewed || false);
+        
+        console.log("[DEBUG] 로드 완료:", data.episode.episode_title);
+      } else {
+        throw new Error(data.message || "데이터를 가져오지 못했습니다.");
+      }
+    } catch (e: any) {
+      console.error("[DEBUG-FRONT] 로드 실패:", e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchDetail();
+  // ✅ 의존성 배열에서 user를 제거하거나, user.id 등 고정값만 넣어서 무한 루프 방지
+}, [episodeId]);
 
   const handleSaveToggle = async () => {
     if (!episodeId || !user) {

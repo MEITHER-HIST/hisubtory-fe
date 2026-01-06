@@ -56,9 +56,9 @@ export default function App() {
       try {
         const res = await fetch("/api/accounts/me/", { credentials: "include" });
         const data = await res.json().catch(() => null);
-        if (res.ok && data?.success) {
+        if (res.ok && data?.is_authenticated) { // backend 응답 필드에 맞춤
           const u: User = {
-            id: data.id,
+            id: data.id || 0,
             username: data.username,
             email: data.email ?? "",
             name: data.username,
@@ -89,20 +89,23 @@ export default function App() {
     }
   };
 
-  const handleStationClick = (stationId: string) => {
+  // ✅ 수정된 부분: MainScreen에서 넘겨주는 episodeId를 받아서 상태에 저장합니다.
+  const handleStationClick = (stationId: string, episodeId: string) => {
     setSelectedStationId(stationId);
-    setSelectedEpisodeId(null); // 특정 역 클릭 시에는 에피소드를 null로 보내서 StoryScreen 내부에서 뽑게 함
+    setSelectedEpisodeId(episodeId); // 이제 null이 아닌 실제 ID를 저장합니다.
     setCurrentScreen("story");
   };
 
-  // ✅ 랜덤 버튼 클릭 시 호출되는 함수
   const handleRandomStation = (stationName: string, episodeId: string) => {
-    setSelectedStationId(stationName); // 역 이름을 ID 대신 넘겨서 UI 표시용으로 사용
+    setSelectedStationId(stationName); 
     setSelectedEpisodeId(episodeId);
     setCurrentScreen("story");
   };
 
+  const [mainKey, setMainKey] = useState(0);
+
   const handleBackToMain = () => {
+    setMainKey(prev => prev + 1);
     setCurrentScreen("main");
     setSelectedStationId(null);
     setSelectedEpisodeId(null);
@@ -126,10 +129,11 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       {currentScreen === "main" && (
         <MainScreen
+          key={mainKey}
           user={user}
           onLoginClick={() => setIsLoginModalOpen(true)}
           onLogout={handleLogout}
-          onStationClick={handleStationClick}
+          onStationClick={handleStationClick} // 인자 2개를 받는 함수 전달
           onRandomStation={handleRandomStation}
           onGoToMyPage={handleGoToMyPage}
         />
@@ -140,7 +144,7 @@ export default function App() {
           key={`story-${selectedEpisodeId}`}
           user={user}
           stationId={selectedStationId}
-          episodeId={selectedEpisodeId} // 이 ID가 stories API로 전달되어야 함
+          episodeId={selectedEpisodeId}
           onBack={handleBackToMain}
         />
       )}
