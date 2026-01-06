@@ -1,14 +1,22 @@
 import { useState } from "react";
 import { line3Stations } from "../data/stations";
 
-type StationDTO = { id: number; name: string; clickable: boolean; color: "green" | "gray"; is_viewed: boolean; };
+// 데이터 구조 정의
+type StationDTO = { 
+  id: number; 
+  name: string; 
+  clickable: boolean; 
+  color: "green" | "gray"; 
+  is_viewed: boolean; 
+};
 
 interface SubwayMapProps {
   stationByName: Map<string | number, StationDTO>;
   onPickEpisode: (stationId: number) => void;
+  isLoggedIn: boolean; // 로그인 상태 추가
 }
 
-export function SubwayMap({ stationByName, onPickEpisode }: SubwayMapProps) {
+export function SubwayMap({ stationByName, onPickEpisode, isLoggedIn }: SubwayMapProps) {
   const [hoveredStation, setHoveredStation] = useState<{name: string, dto: StationDTO | undefined} | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
@@ -21,15 +29,18 @@ export function SubwayMap({ stationByName, onPickEpisode }: SubwayMapProps) {
   return (
     <div className="relative w-full bg-white rounded-2xl p-4 overflow-x-auto scrollbar-hide">
       <svg width="1200" height="550" className="mx-auto">
+        {/* 지하철 노선 배경 */}
         <g stroke="#EF7C1C" strokeWidth="6" fill="none" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="100,100 1150,100 1150,250 100,250 100,400 1010,400" />
         </g>
+
         {line3Stations.map((stationName, index) => {
           const pos = getStationPosition(index);
           const cleanName = stationName.trim().replace(/역$/, "");
           const dto = stationByName.get(cleanName) || stationByName.get(stationName.trim());
           
           const isViewed = dto?.color === "green";
+          // 클릭 가능 여부: 방문했거나(localStorage 포함), 서버에서 clickable로 판단된 경우
           const canClick = dto?.clickable === true;
 
           return (
@@ -44,11 +55,15 @@ export function SubwayMap({ stationByName, onPickEpisode }: SubwayMapProps) {
                 onMouseEnter={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   setHoveredStation({ name: stationName, dto });
-                  setTooltipPosition({ x: rect.left + window.scrollX + rect.width / 2, y: rect.top + window.scrollY - 10 });
+                  setTooltipPosition({ 
+                    x: rect.left + window.scrollX + rect.width / 2, 
+                    y: rect.top + window.scrollY - 10 
+                  });
                 }}
                 onMouseLeave={() => setHoveredStation(null)}
               />
-              <text x={pos.x} y={pos.y + 25} textAnchor="middle" className={`text-[10px] font-bold pointer-events-none ${isViewed ? "fill-green-600" : "fill-gray-400"}`}>
+              <text x={pos.x} y={pos.y + 25} textAnchor="middle" 
+                    className={`text-[10px] font-bold pointer-events-none ${isViewed ? "fill-green-600" : "fill-gray-400"}`}>
                 {stationName}
               </text>
             </g>
@@ -56,6 +71,7 @@ export function SubwayMap({ stationByName, onPickEpisode }: SubwayMapProps) {
         })}
       </svg>
 
+      {/* 동적 툴팁 */}
       {hoveredStation && (
         <div 
           className="fixed bg-white border border-gray-100 p-3 rounded-xl shadow-2xl z-[10000] transform -translate-x-1/2 -translate-y-full pointer-events-none min-w-[140px]"
@@ -66,7 +82,9 @@ export function SubwayMap({ stationByName, onPickEpisode }: SubwayMapProps) {
             <span className="font-bold text-sm text-gray-800">{hoveredStation.name}</span>
           </div>
           <p className="text-[11px] text-gray-500 whitespace-nowrap">
-            {hoveredStation.dto?.color === "green" ? "✅ 다시보기 가능" : "🔒 미방문 역"}
+            {hoveredStation.dto?.color === "green" 
+              ? "✅ 다시보기 가능" 
+              : (isLoggedIn ? "🔒 미방문 역" : "🔒 로그인 시 입장 가능")}
           </p>
         </div>
       )}
