@@ -56,9 +56,9 @@ export default function App() {
       try {
         const res = await fetch("/api/accounts/me/", { credentials: "include" });
         const data = await res.json().catch(() => null);
-        if (res.ok && data?.success) {
+        if (res.ok && data?.is_authenticated) { // backend 응답 필드에 맞춤
           const u: User = {
-            id: data.id,
+            id: data.id || 0,
             username: data.username,
             email: data.email ?? "",
             name: data.username,
@@ -89,19 +89,23 @@ export default function App() {
     }
   };
 
-  const handleStationClick = (stationId: string) => {
+  // ✅ 수정된 부분: MainScreen에서 넘겨주는 episodeId를 받아서 상태에 저장합니다.
+  const handleStationClick = (stationId: string, episodeId: string) => {
     setSelectedStationId(stationId);
-    setSelectedEpisodeId(null);
+    setSelectedEpisodeId(episodeId); // 이제 null이 아닌 실제 ID를 저장합니다.
     setCurrentScreen("story");
   };
 
-  const handleRandomStation = (stationId: string, episodeId: string) => {
-    setSelectedStationId(stationId);
+  const handleRandomStation = (stationName: string, episodeId: string) => {
+    setSelectedStationId(stationName); 
     setSelectedEpisodeId(episodeId);
     setCurrentScreen("story");
   };
 
+  const [mainKey, setMainKey] = useState(0);
+
   const handleBackToMain = () => {
+    setMainKey(prev => prev + 1);
     setCurrentScreen("main");
     setSelectedStationId(null);
     setSelectedEpisodeId(null);
@@ -115,13 +119,9 @@ export default function App() {
     setCurrentScreen("mypage");
   };
 
-  // ✅ [수정] 마이페이지에서 에피소드 클릭 시 처리
-  // 더 이상 로컬 require를 사용하지 않고 넘겨받은 episodeId를 상태에 저장합니다.
   const handleEpisodeClick = (episodeId: string) => {
-    // DB 기반 시스템이므로 local data 조회가 필요 없습니다.
-    // StoryScreen 컴포넌트가 episodeId를 받아 서버에서 데이터를 직접 가져올 것입니다.
     setSelectedEpisodeId(episodeId);
-    setSelectedStationId(null); // 특정 에피소드 기반일 때는 역 ID를 초기화하거나 무시
+    setSelectedStationId(null); 
     setCurrentScreen("story");
   };
 
@@ -129,10 +129,11 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
       {currentScreen === "main" && (
         <MainScreen
+          key={mainKey}
           user={user}
           onLoginClick={() => setIsLoginModalOpen(true)}
           onLogout={handleLogout}
-          onStationClick={handleStationClick}
+          onStationClick={handleStationClick} // 인자 2개를 받는 함수 전달
           onRandomStation={handleRandomStation}
           onGoToMyPage={handleGoToMyPage}
         />
@@ -140,7 +141,7 @@ export default function App() {
 
       {currentScreen === "story" && (
         <StoryScreen
-          key={`${selectedStationId ?? "none"}:${selectedEpisodeId ?? "none"}`}
+          key={`story-${selectedEpisodeId}`}
           user={user}
           stationId={selectedStationId}
           episodeId={selectedEpisodeId}
@@ -157,7 +158,7 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onLogin={handleLogin}
       />
-      <Toaster />
+      <Toaster position="top-center" richColors />
     </div>
   );
 }

@@ -1,139 +1,73 @@
 import { useState } from "react";
 import { line3Stations } from "../data/stations";
 
-type StationDTO = {
-  id: number;
-  name: string;
-  clickable: boolean;
-  color: "green" | "gray";
-};
+type StationDTO = { id: number; name: string; clickable: boolean; color: "green" | "gray"; is_viewed: boolean; };
 
 interface SubwayMapProps {
-  user: { name: string } | null;
-  stationByName: Map<string, StationDTO>;
+  stationByName: Map<string | number, StationDTO>;
   onPickEpisode: (stationId: number) => void;
 }
 
-export function SubwayMap({ user, stationByName, onPickEpisode }: SubwayMapProps) {
-  const [hoveredStation, setHoveredStation] = useState<string | null>(null);
+export function SubwayMap({ stationByName, onPickEpisode }: SubwayMapProps) {
+  const [hoveredStation, setHoveredStation] = useState<{name: string, dto: StationDTO | undefined} | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   const getStationPosition = (index: number) => {
-    // 기존 로직 유지(레이아웃)
-    if (index <= 15) {
-      return { x: 100 + index * 70, y: 100 };
-    } else if (index <= 30) {
-      return { x: 100 + (30 - index) * 70, y: 250 };
-    } else {
-      return { x: 100 + (index - 30) * 70, y: 400 };
-    }
-  };
-
-  const getStationStatus = (stationName: string) => {
-    return stationByName.get(stationName)?.color ?? "gray";
-  };
-
-  const getStationClickable = (stationName: string) => {
-    return stationByName.get(stationName)?.clickable ?? false;
-  };
-
-  const handleStationHover = (station: string, event: React.MouseEvent) => {
-    setHoveredStation(station);
-    const rect = event.currentTarget.getBoundingClientRect();
-    setTooltipPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10,
-    });
-  };
-
-  const handleStationLeave = () => {
-    setHoveredStation(null);
-  };
-
-  const handleStationClickInternal = (stationName: string) => {
-    const dto = stationByName.get(stationName);
-    if (!dto) return;
-    if (!dto.clickable) return;
-
-    onPickEpisode(dto.id);
+    if (index <= 15) return { x: 100 + index * 70, y: 100 };
+    if (index <= 30) return { x: 100 + (30 - index) * 70, y: 250 };
+    return { x: 100 + (index - 30) * 70, y: 400 };
   };
 
   return (
-    <div className="relative w-full bg-white rounded-2xl shadow-lg p-8 overflow-x-auto">
-      <svg width="1200" height="650" className="mx-auto">
-        {/* 기존 선(3호선) 유지 */}
-        <line x1="100" y1="100" x2={100 + 15 * 70} y2="100" stroke="#EF7C1C" strokeWidth="6" />
-        <line x1={100 + 15 * 70} y1="100" x2={100 + 15 * 70} y2="250" stroke="#EF7C1C" strokeWidth="6" />
-        <line x1={100 + 15 * 70} y1="250" x2="100" y2="250" stroke="#EF7C1C" strokeWidth="6" />
-        <line x1="100" y1="250" x2="100" y2="400" stroke="#EF7C1C" strokeWidth="6" />
-        <line x1="100" y1="400" x2={100 + 13 * 70} y2="400" stroke="#EF7C1C" strokeWidth="6" />
-
-        {/* 역 마커 */}
-        {line3Stations.map((station, index) => {
+    <div className="relative w-full bg-white rounded-2xl p-4 overflow-x-auto scrollbar-hide">
+      <svg width="1200" height="550" className="mx-auto">
+        <g stroke="#EF7C1C" strokeWidth="6" fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="100,100 1150,100 1150,250 100,250 100,400 1010,400" />
+        </g>
+        {line3Stations.map((stationName, index) => {
           const pos = getStationPosition(index);
-          const status = getStationStatus(station);
-          const isHovered = hoveredStation === station;
-          const isClickable = getStationClickable(station);
-          const isCorner = index === 15 || index === 16 || index === 30 || index === 31;
+          const cleanName = stationName.trim().replace(/역$/, "");
+          const dto = stationByName.get(cleanName) || stationByName.get(stationName.trim());
+          
+          const isViewed = dto?.color === "green";
+          const canClick = dto?.clickable === true;
 
           return (
-            <g key={station}>
+            <g key={index} 
+               className={canClick ? "cursor-pointer" : "cursor-default"} 
+               onClick={() => canClick && onPickEpisode(dto!.id)}>
               <circle
-                cx={pos.x}
-                cy={pos.y}
-                r={isHovered ? 14 : isCorner ? 12 : 10}
-                fill={status === "green" ? "#22c55e" : "#9ca3af"}
-                stroke="white"
-                strokeWidth="4"
-                className={`transition-all ${isClickable ? "cursor-pointer" : "cursor-not-allowed"}`}
-                onMouseEnter={(e) => handleStationHover(station, e)}
-                onMouseLeave={handleStationLeave}
-                onClick={() => handleStationClickInternal(station)}
+                cx={pos.x} cy={pos.y} r={hoveredStation?.name === stationName ? 13 : 10}
+                fill={isViewed ? "#22c55e" : "#9ca3af"}
+                stroke="white" strokeWidth="3"
+                className="transition-all duration-200"
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredStation({ name: stationName, dto });
+                  setTooltipPosition({ x: rect.left + window.scrollX + rect.width / 2, y: rect.top + window.scrollY - 10 });
+                }}
+                onMouseLeave={() => setHoveredStation(null)}
               />
-
-              <text
-                x={pos.x}
-                y={index <= 15 ? pos.y - 20 : index <= 30 ? pos.y + 30 : pos.y - 20}
-                textAnchor="middle"
-                className="fill-gray-700 text-xs font-medium"
-              >
-                {station}
+              <text x={pos.x} y={pos.y + 25} textAnchor="middle" className={`text-[10px] font-bold pointer-events-none ${isViewed ? "fill-green-600" : "fill-gray-400"}`}>
+                {stationName}
               </text>
             </g>
           );
         })}
       </svg>
 
-      {/* Tooltip */}
       {hoveredStation && (
-        <div
-          className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-3 z-50 w-56"
-          style={{
-            left: tooltipPosition.x - 112,
-            top: tooltipPosition.y - 80,
-          }}
+        <div 
+          className="fixed bg-white border border-gray-100 p-3 rounded-xl shadow-2xl z-[10000] transform -translate-x-1/2 -translate-y-full pointer-events-none min-w-[140px]"
+          style={{ left: tooltipPosition.x, top: tooltipPosition.y }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                getStationStatus(hoveredStation) === "green" ? "bg-green-500" : "bg-gray-400"
-              }`}
-            />
-            <h4 className="text-gray-900">{hoveredStation}역</h4>
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`w-2 h-2 rounded-full ${hoveredStation.dto?.color === "green" ? "bg-green-500" : "bg-gray-300"}`} />
+            <span className="font-bold text-sm text-gray-800">{hoveredStation.name}</span>
           </div>
-
-          <p className="text-gray-600 text-sm">
-            {(() => {
-              const dto = stationByName.get(hoveredStation);
-              if (!dto) return "준비중인 역입니다";
-              if (user) return dto.color === "green" ? "이미 방문한 역입니다" : "아직 방문하지 않은 역입니다";
-              return "클릭해서 스토리를 볼 수 있어요 (로그인하면 기록 저장)";
-            })()}
+          <p className="text-[11px] text-gray-500 whitespace-nowrap">
+            {hoveredStation.dto?.color === "green" ? "✅ 다시보기 가능" : "🔒 미방문 역"}
           </p>
-
-          {getStationClickable(hoveredStation) && (
-            <p className="text-xs text-blue-600 mt-2">클릭하여 스토리 보기</p>
-          )}
         </div>
       )}
     </div>
