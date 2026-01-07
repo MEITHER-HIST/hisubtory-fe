@@ -1,14 +1,19 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Shuffle, User as UserIcon, Menu, ChevronDown, Info } from 'lucide-react';
+import { Shuffle, User as UserIcon, Menu, ChevronDown, Info, X } from 'lucide-react';
 import { SubwayMap } from './SubwayMap';
 import type { User } from "../App";
 
-// 호선별 색상 정의 (배지 디자인용)
+// ✅ 1호선부터 9호선까지 공식 색상 데이터 정의
 const LINE_COLORS: Record<string, string> = {
   "1": "#0052A4",
   "2": "#00A84D",
   "3": "#EF7C1C",
   "4": "#00A5DE",
+  "5": "#996CAC",
+  "6": "#CD7C2F",
+  "7": "#747F00",
+  "8": "#E6186C",
+  "9": "#BB8336",
 };
 
 interface StationDTO { 
@@ -113,9 +118,9 @@ export function MainScreen({
     }
   };
 
-return (
+  return (
     <div className="min-h-screen flex flex-col bg-white">
-      {/* --- 헤더: 기존 디자인 유지 --- */}
+      {/* --- 헤더 --- */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
           <Menu 
@@ -149,15 +154,12 @@ return (
 
       <main className="flex-1 max-w-5xl mx-auto px-4 py-8 w-full flex flex-col items-center">
         
-        {/* ✅ [수정] 호선 안내 배지: 크기 확대 + 색상 확실히 적용 */}
+        {/* ✅ [수정] 호선 안내 배지: LINE_COLORS 객체를 사용하여 모든 호선 색상 자동 적용 */}
         <div className="mb-6 self-start flex items-center gap-4 bg-white px-6 py-2.5 rounded-full border border-gray-200 shadow-md">
           <div 
             className="w-5 h-5 rounded-full shadow-sm" 
             style={{ 
-              backgroundColor: currentLine === "3" ? "#EF7C1C" : 
-                               currentLine === "1" ? "#0052A4" : 
-                               currentLine === "2" ? "#00A84D" : 
-                               currentLine === "4" ? "#00A5DE" : "#gray" 
+              backgroundColor: LINE_COLORS[currentLine] || "#cbd5e1" 
             }} 
           />
           <span className="text-base font-black text-gray-800">{currentLine}호선 이용 중</span>
@@ -189,9 +191,9 @@ return (
         {showRandomButton && (
           <button 
             onClick={handleRandomStation} 
-            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95 hover:bg-blue-700"
+            className="w-full py-6 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-3 text-2xl transition-transform active:scale-95 hover:bg-blue-700"
           >
-            <Shuffle className="w-5 h-5" /> 오늘의 랜덤 스토리 탐험하기
+            <Shuffle className="w-6 h-6" /> 오늘의 랜덤 스토리 탐험하기
           </button>
         )}
       </main>

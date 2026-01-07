@@ -139,53 +139,97 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
-      {/* ✅ 목차(사이드바) UI - 디자인 가이드 반영 */}
+      {/* ✅ 1~9호선 확장 및 3호선만 활성화 버전 */}
       {isSidebarOpen && currentScreen === "main" && createPortal(
-        <div className="fixed inset-0 z-[9999] bg-black/40 animate-in fade-in duration-300" onClick={() => setIsSidebarOpen(false)}>
+        <div 
+          className="fixed inset-0 z-[10000] bg-black/40 animate-in fade-in duration-300" 
+          onClick={() => setIsSidebarOpen(false)}
+        >
           <div 
-            className="absolute top-0 left-0 w-80 h-full bg-white p-8 shadow-2xl animate-in slide-in-from-left duration-300" 
+            /* 수정 포인트: w-96 가로폭 유지 */
+            className="absolute left-0 w-96 h-full bg-white shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col"
+            style={{ top: '65px' }} 
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-10">
-              <h2 className="text-2xl font-black text-blue-600 tracking-tight">노선 선택</h2>
-              <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <X className="w-6 h-6 text-gray-400" />
+            {/* 1. 사이드바 헤더: 우측 끝으로 배치된 닫기 버튼 */}
+            <div className="flex items-center justify-between px-8 py-6 bg-white border-b border-gray-100">
+              <h2 className="text-xl font-black text-gray-800 tracking-tight">Menu</h2>
+              <button 
+                onClick={() => setIsSidebarOpen(false)} 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors outline-none"
+              >
+                <X className="w-6 h-6 text-gray-400 hover:text-gray-900 stroke-[2.5px]" /> 
               </button>
             </div>
             
-            <div className="flex flex-col gap-4">
-              {subwayLines.map((line) => {
-                const isLine3 = line.id === "3";
-                const isActive = currentLine === line.id;
+            {/* 2. 노선 리스트 영역 (스크롤 가능) */}
+            <div className="flex-1 overflow-y-auto px-8 pt-10 pb-24 flex flex-col gap-6">
+              {/* 1호선부터 9호선까지 배열 생성 및 렌더링 */}
+              {Array.from({ length: 9 }, (_, i) => {
+                const lineId = (i + 1).toString();
+                const isLine3 = lineId === "3"; // ✅ 3호선 여부 확인
+                const isActive = currentLine === lineId;
+
+                // ✅ 요청 사항: 1~9호선 공식 색상 매핑
+                const lineColors: Record<string, string> = {
+                  "1": "#0052A4", // 파랑
+                  "2": "#00A84D", // 초록
+                  "3": "#EF7C1C", // 주황
+                  "4": "#00A5DE", // 하늘
+                  "5": "#996CAC", // 보라
+                  "6": "#CD7C2F", // 갈색
+                  "7": "#747F00", // 국방
+                  "8": "#E6186C", // 분홍
+                  "9": "#BB8336", // 금색
+                };
+                const currentLineColor = lineColors[lineId] || "#cbd5e1";
 
                 return (
                   <button
-                    key={line.id}
+                    key={lineId}
+                    /* ✅ 요청 사항: 3호선 이외에는 접근 불가(disabled) 설정 */
                     disabled={!isLine3}
                     onClick={() => {
                       if (isLine3) {
-                        setCurrentLine(line.id);
+                        setCurrentLine(lineId);
                         setIsSidebarOpen(false);
                       }
                     }}
-                    className={`flex items-center gap-4 p-5 rounded-2xl font-bold transition-all ${
+                    /* 디자인 포인트: 시원한 여백(py-4, px-6)과 둥근 모서리 유지 */
+                    className={`flex items-center gap-6 py-4 px-6 rounded-3xl font-black transition-all border outline-none ${
                       isLine3 
-                        ? (isActive ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-700 hover:bg-gray-100')
-                        : 'bg-gray-100 text-gray-300 cursor-not-allowed opacity-60'
+                        ? (isActive 
+                            ? 'bg-blue-600 text-white shadow-xl scale-[1.02] border-transparent' 
+                            : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-100')
+                        : 'bg-gray-50/50 text-gray-300 cursor-not-allowed opacity-60 border-transparent'
                     }`}
                   >
-                    <div className={`w-3.5 h-3.5 rounded-full ${isActive && isLine3 ? 'bg-white' : line.color}`} />
-                    <span className="text-lg">{line.name}</span>
+                    {/* ✅ 요청 사항: 호선별 동그라미 색상 및 크기(w-5 h-5) 적용 */}
+                    <div 
+                      className={`w-5 h-5 rounded-full border-2 shrink-0 ${
+                        isActive && isLine3 ? 'border-white' : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: isActive && isLine3 ? '#ffffff' : currentLineColor }}
+                    />
+                    
+                    <span className="text-base tracking-tight">{lineId}호선</span>
+                    
+                    {/* 3호선이 아닐 경우 '준비중' 표시 */}
                     {!isLine3 && (
-                      <span className="ml-auto text-[10px] bg-gray-200 text-gray-500 px-2 py-1 rounded-lg">준비중</span>
+                      <span className="ml-auto text-[10px] bg-gray-200/60 text-gray-500 px-3 py-1 rounded-full font-bold">
+                        준비중
+                      </span>
                     )}
                   </button>
                 );
               })}
             </div>
 
-            <div className="absolute bottom-8 left-8 right-8">
-              <p className="text-xs text-gray-400 font-medium">© 2026 HISUBTORY Team</p>
+            {/* 3. 사이드바 푸터 */}
+            <div className="p-8 bg-white border-t border-gray-50 mb-[65px]">
+              <p className="text-[12px] text-gray-300 font-bold text-center italic tracking-[0.2em]">
+                HISUBTORY
+              </p>
             </div>
           </div>
         </div>,
