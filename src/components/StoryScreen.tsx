@@ -32,7 +32,6 @@ interface StoryScreenProps {
   stationId: string | null;
   episodeId: string | null;
   onBack: () => void;
-  // ✅ 부모로부터 ID 변경 함수 수신 (올바른 주석 처리)
   onNextEpisode: (newId: string) => void;
 }
 
@@ -88,13 +87,15 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
   }, [episodeId]);
 
   const handleSaveToggle = async () => {
-    if (!episodeId || !user) {
+    const currentId = episode?.episode_id || episodeId;
+
+    if (!currentId || !user) {
       toast.error("로그인이 필요한 서비스입니다.");
       return;
     }
 
     try {
-      const res = await fetch(`/api/stories/bookmark/${episodeId}/`, {
+      const res = await fetch(`/api/stories/bookmark/${currentId}/`, {
         method: "POST",
         credentials: "include",
       });
@@ -102,38 +103,51 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
       if (res.ok) {
         const data = await res.json();
         setIsSaved(data.is_bookmarked);
-        toast.success(data.is_bookmarked ? "내 이야기에 저장되었습니다!" : "저장이 취소되었습니다.");
+        toast.success(
+          data.is_bookmarked 
+            ? `[${episode?.webtoon_title}] 내 보관함에 저장되었습니다.` 
+            : "보관함 저장이 취소되었습니다."
+        );
       }
     } catch (err) {
-      toast.error("저장 처리 중 오류가 발생했습니다.");
+      toast.error("처리 중 오류가 발생했습니다.");
     }
   };
 
-  {/* ✅ '다른 이야기'를 누를 때 실행되는 실제 로직 */}
   const handleOtherStory = async () => {
+    // 🚩 [핵심 수정] episode 객체의 webtoon_id(숫자)를 최우선으로 사용합니다.
+    const currentStationId = episode?.webtoon_id || stationId;
+
+    if (!currentStationId) {
+      toast.error("역 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/stories/v1/episode/random/?station_id=${stationId}&exclude=${episodeId}`, {
+      // ✅ 주소에서 v1 경로를 사용하는지 서버 urls.py와 다시 확인해 보세요. 
+      // 만약 404가 뜨면 v1을 삭제해야 합니다.
+      const res = await fetch(`/api/stories/v1/episode/random/?station_id=${currentStationId}&exclude=${episodeId}`, {
         method: "GET",
         credentials: "include",
       });
 
       const data = await res.json();
       
-      // 🚩 백엔드에서 success: false로 왔을 때 처리
-      if (data.success && data.episode_id) {
+      if (res.ok && data.success && data.episode_id) {
         onNextEpisode?.(data.episode_id.toString());
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        // 백엔드에서 보낸 "새로운 에피소드를 준비 중이에요!" 메시지 출력
-        toast.info(data.message || "준비된 이야기가 더 이상 없습니다.");
+        toast.info(data.message || "새로운 에피소드를 준비 중입니다!");
       }
     } catch (err) {
-      toast.error("이야기를 불러오는 중 오류가 발생했습니다.");
+      console.error("랜덤 에피소드 로드 실패:", err);
+      toast.error("다른 이야기를 불러오는 중에 문제가 발생했습니다.");
     }
   };
+
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-blue-50/30">
-      <p className="text-gray-500 font-medium">이야기를 불러오는 중...</p>
+    <div className="min-h-screen flex items-center justify-center bg-white font-bold text-blue-600">
+      <p>기록을 불러오는 중...</p>
     </div>
   );
 
@@ -141,26 +155,24 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
     <div className="min-h-screen flex items-center justify-center px-6 text-center">
       <div>
         <p className="text-gray-900 mb-6 font-medium">{error || "에피소드를 불러올 수 없습니다."}</p>
-        <button onClick={onBack} className="px-8 py-3 bg-blue-600 text-white rounded-lg font-bold">메인으로</button>
+        <button onClick={onBack} className="px-8 py-3 bg-blue-600 text-white rounded-lg font-bold">돌아가기</button>
       </div>
     </div>
   );
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <header className="bg-white shadow-sm sticky top-0 z-50">
+      <header className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
-          <div className="flex items-center">
-            <ArrowLeft 
-              className="w-6 h-6 text-gray-600 cursor-pointer hover:text-blue-600 transition-colors" 
-              onClick={onBack}
-            />
-          </div>
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-blue-600 font-bold transition-colors">
+            <ArrowLeft className="w-6 h-6" />
+            <span>돌아가기</span>
+          </button>
           <h1 className="absolute left-1/2 -translate-x-1/2 text-blue-600 font-bold text-xl tracking-widest">
             HISUBTORY
           </h1>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 text-sm font-bold bg-gray-50 px-3 py-2 rounded-xl border border-transparent">
+            <div className="flex items-center gap-2 text-sm font-bold bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
               <div 
                 className="w-3 h-3 rounded-full shrink-0" 
                 style={{ backgroundColor: LINE_COLORS[episode?.line || "3"] || "#EF7C1C" }} 
@@ -189,7 +201,7 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
             {episode.webtoon_title}
           </h2>
           <div className="flex items-center gap-3">
-            <span className="text-gray-500 font-bold">{episode.station_name}역의 이야기</span>
+            <span className="text-gray-500 font-bold">{episode.station_name}의 이야기</span>
             {isViewed && user && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black">✓ 시청 완료</span>}
           </div>
         </div>
@@ -201,7 +213,7 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
                 className="bg-white rounded-3xl shadow-md overflow-hidden border border-gray-100"
                 style={{ marginBottom: '1px' }} 
               >
-                <img src={c.image_url || ""} alt={`Cut ${idx + 1}`} className="w-full h-auto object-cover min-h-[300px]" />
+                <img src={c.image_url || ""} alt={`장면 ${idx + 1}`} className="w-full h-auto object-cover min-h-[300px]" />
               </div>
 
               <div 
@@ -229,7 +241,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
               {isSaved ? <BookmarkCheck className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />}
               {isSaved ? "내 보관함" : "저장하기"}
             </button>
-            {/* ✅ 클릭 이벤트에 handleOtherStory 연결 */}
             <button onClick={handleOtherStory} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2">
               <RefreshCw className="w-6 h-6" /> 다른 이야기
             </button>
