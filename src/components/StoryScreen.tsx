@@ -3,17 +3,10 @@ import { ArrowLeft, Bookmark, BookmarkCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { User } from "../App";
 
-// 호선별 색상 정의
 const LINE_COLORS: Record<string, string> = {
-  "1": "#0052A4",
-  "2": "#00A84D",
-  "3": "#EF7C1C", 
-  "4": "#00A5DE",
-  "5": "#996CAC",
-  "6": "#CD7C2F",
-  "7": "#747F28",
-  "8": "#E6186C",
-  "9": "#BB8336",
+  "1": "#0052A4", "2": "#00A84D", "3": "#EF7C1C", 
+  "4": "#00A5DE", "5": "#996CAC", "6": "#CD7C2F",
+  "7": "#747F28", "8": "#E6186C", "9": "#BB8336",
 };
 
 interface CutDTO {
@@ -39,9 +32,11 @@ interface StoryScreenProps {
   stationId: string | null;
   episodeId: string | null;
   onBack: () => void;
+  // ✅ 부모로부터 ID 변경 함수 수신 (올바른 주석 처리)
+  onNextEpisode: (newId: string) => void;
 }
 
-export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenProps) {
+export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode }: StoryScreenProps) {
   const [isSaved, setIsSaved] = useState(false);
   const [isViewed, setIsViewed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -114,8 +109,30 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
     }
   };
 
-  const handleNewEpisode = () => {
-    toast("새 에피소드 추천 기능을 준비 중입니다!");
+  {/* ✅ '다른 이야기'를 누를 때 실행되는 실제 로직 */}
+  const handleOtherStory = async () => {
+    try {
+      // stationId가 숫자ID인지 이름인지에 따라 백엔드 뷰 로직에 맞춰 호출
+      const res = await fetch(`/api/stories/episode/random/?station_id=${stationId}&exclude=${episodeId}`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!res.ok) throw new Error("새 이야기를 찾을 수 없습니다.");
+
+      const data = await res.json();
+      
+      if (data.success && data.episode_id) {
+        if (onNextEpisode) {
+          onNextEpisode(data.episode_id.toString());
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      } else {
+        toast.info("이 역의 다른 이야기가 더 없어요!");
+      }
+    } catch (err) {
+      toast.error("이야기를 불러오는 중 오류가 발생했습니다.");
+    }
   };
 
   if (loading) return (
@@ -135,7 +152,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      {/* 헤더: MainScreen과 100% 동일한 구조 유지 */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
           <div className="flex items-center">
@@ -162,17 +178,15 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {/* 상단 제목 카드: mb-8 대신 style로 15px 간격 적용 */}
         <div 
           className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100"
           style={{ marginBottom: '15px' }} 
         >
-          {/* ✅ 제목 크기 수정: text-3xl -> text-4xl로 확대 및 강조 */}
           <h2 
             style={{ 
-              fontSize: '20px',      // 원하는 크기로 숫자만 바꾸세요
-              lineHeight: '0.8',     // 줄 간격 (글자가 커지면 좁게 잡는게 예쁩니다)
-              letterSpacing: '-1px'  // 자간 (글자가 커지면 살짝 좁게)
+              fontSize: '20px', 
+              lineHeight: '0.8',
+              letterSpacing: '-1px'
             }} 
             className="font-black text-gray-900 mb-4"
           >
@@ -184,11 +198,9 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
           </div>
         </div>
 
-        {/* 컷 리스트 */}
         {cuts.length > 0 ? (
           cuts.map((c, idx) => (
             <div key={idx} className="flex flex-col">
-              {/* 사진 박스 */}
               <div 
                 className="bg-white rounded-3xl shadow-md overflow-hidden border border-gray-100"
                 style={{ marginBottom: '1px' }} 
@@ -196,7 +208,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
                 <img src={c.image_url || ""} alt={`Cut ${idx + 1}`} className="w-full h-auto object-cover min-h-[300px]" />
               </div>
 
-              {/* 캡션 박스: 다음 사진과의 간격 60px */}
               <div 
                 className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100"
                 style={{ marginBottom: '50px' }} 
@@ -211,7 +222,6 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
           </div>
         )}
 
-        {/* 하단 플로팅 액션 바 */}
         <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-6 sticky bottom-6 mt-16 border border-gray-100">
           <div className="flex gap-4">
             <button
@@ -223,7 +233,8 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
               {isSaved ? <BookmarkCheck className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />}
               {isSaved ? "내 보관함" : "저장하기"}
             </button>
-            <button onClick={() => toast("새 에피소드 추천 준비 중!")} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2">
+            {/* ✅ 클릭 이벤트에 handleOtherStory 연결 */}
+            <button onClick={handleOtherStory} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2">
               <RefreshCw className="w-6 h-6" /> 다른 이야기
             </button>
           </div>
