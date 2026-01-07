@@ -117,31 +117,20 @@ export function StoryScreen({ user, stationId, episodeId, onBack, onNextEpisode 
         credentials: "include",
       });
 
-      // 🚩 수정: 404(데이터 없음)는 에러로 던지지 않고, JSON 데이터를 먼저 확인합니다.
       const data = await res.json();
       
-      if (res.status === 404) {
-        // 백엔드에서 보낸 "불러올 수 있는 다른 이야기가 없습니다." 메시지를 보여줍니다.
-        toast.info(data.message || "새로운 에피소드를 준비 중이에요!");
-        return;
-      }
-
-      if (!res.ok) throw new Error("서버 통신에 실패했습니다.");
-
+      // 🚩 백엔드에서 success: false로 왔을 때 처리
       if (data.success && data.episode_id) {
-        if (onNextEpisode) {
-          onNextEpisode(data.episode_id.toString());
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        onNextEpisode?.(data.episode_id.toString());
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        toast.info("새로운 에피소드를 준비 중이에요!");
+        // 백엔드에서 보낸 "새로운 에피소드를 준비 중이에요!" 메시지 출력
+        toast.info(data.message || "준비된 이야기가 더 이상 없습니다.");
       }
-    } catch (err: any) {
-      // 진짜 네트워크 오류나 500 에러일 때만 에러 토스트를 띄웁니다.
+    } catch (err) {
       toast.error("이야기를 불러오는 중 오류가 발생했습니다.");
     }
   };
-
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-blue-50/30">
       <p className="text-gray-500 font-medium">이야기를 불러오는 중...</p>
