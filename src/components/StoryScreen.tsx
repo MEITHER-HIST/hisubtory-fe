@@ -134,63 +134,73 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
   );
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
+    <div className="min-h-screen flex flex-col bg-white">
+      {/* 헤더: MainScreen과 100% 동일한 구조 유지 */}
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
-          
-          {/* 1. 왼쪽: 돌아가기 버튼 (크기 및 굵기 상향) */}
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors z-10">
-            <ArrowLeft className="w-6 h-6" />
-            <span className="font-black text-base hidden sm:inline">돌아가기</span>
-          </button>
-          
-          {/* 2. 중앙: 로고 */}
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-blue-600 font-bold text-xl tracking-widest z-0">
+          <div className="flex items-center">
+            <ArrowLeft 
+              className="w-6 h-6 text-gray-600 cursor-pointer hover:text-blue-600 transition-colors" 
+              onClick={onBack}
+            />
+          </div>
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-blue-600 font-bold text-xl tracking-widest">
             HISUBTORY
           </h1>
-          
-          {/* 오른쪽 배지 영역: 초기 밸런스 복구 + '역' 추가 */}
-          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-100 shadow-sm z-10">
-            {/* 초기 디자인의 밸런스 좋은 동그라미 크기 (w-3 h-3) */}
-            <div 
-              className="w-3 h-3 rounded-full shrink-0" 
-              style={{ 
-                backgroundColor: LINE_COLORS[episode?.line || "3"] || "#EF7C1C" 
-              }} 
-            />
-            
-            {/* 역 이름 뒤에 '역'을 붙이는 로직 적용 */}
-            <span className="text-gray-900 font-bold text-sm tracking-tight">
-              {episode?.station_name.replace(/역$/, "")}역
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm font-bold bg-gray-50 px-3 py-2 rounded-xl border border-transparent">
+              <div 
+                className="w-3 h-3 rounded-full shrink-0" 
+                style={{ backgroundColor: LINE_COLORS[episode?.line || "3"] || "#EF7C1C" }} 
+              />
+              <span className="text-gray-900">
+                {episode?.station_name.replace(/역$/, "")}역
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {/* 상단 제목 카드 */}
-        <div className="bg-white rounded-3xl shadow-sm p-8 mb-8 border border-gray-100">
-          <h2 className="text-3xl font-black text-gray-900 mb-3 leading-tight">
+        {/* 상단 제목 카드: mb-8 대신 style로 15px 간격 적용 */}
+        <div 
+          className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100"
+          style={{ marginBottom: '15px' }} 
+        >
+          {/* ✅ 제목 크기 수정: text-3xl -> text-4xl로 확대 및 강조 */}
+          <h2 
+            style={{ 
+              fontSize: '20px',      // 원하는 크기로 숫자만 바꾸세요
+              lineHeight: '0.8',     // 줄 간격 (글자가 커지면 좁게 잡는게 예쁩니다)
+              letterSpacing: '-1px'  // 자간 (글자가 커지면 살짝 좁게)
+            }} 
+            className="font-black text-gray-900 mb-4"
+          >
             {episode.webtoon_title}
           </h2>
           <div className="flex items-center gap-3">
             <span className="text-gray-500 font-bold">{episode.station_name}역의 이야기</span>
-            {isViewed && user && (
-              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black">
-                ✓ 시청 완료
-              </span>
-            )}
+            {isViewed && user && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black">✓ 시청 완료</span>}
           </div>
         </div>
 
         {/* 컷 리스트 */}
         {cuts.length > 0 ? (
           cuts.map((c, idx) => (
-            <div key={idx} className="mb-12">
-              <div className="bg-white rounded-3xl shadow-md overflow-hidden mb-6 border border-gray-100">
+            <div key={idx} className="flex flex-col">
+              {/* 사진 박스 */}
+              <div 
+                className="bg-white rounded-3xl shadow-md overflow-hidden border border-gray-100"
+                style={{ marginBottom: '1px' }} 
+              >
                 <img src={c.image_url || ""} alt={`Cut ${idx + 1}`} className="w-full h-auto object-cover min-h-[300px]" />
               </div>
-              <div className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100">
+
+              {/* 캡션 박스: 다음 사진과의 간격 60px */}
+              <div 
+                className="bg-white rounded-3xl shadow-sm p-8 border border-gray-100"
+                style={{ marginBottom: '50px' }} 
+              >
                 <p className="text-gray-800 text-lg leading-relaxed font-bold">{c.caption}</p>
               </div>
             </div>
@@ -207,17 +217,14 @@ export function StoryScreen({ user, stationId, episodeId, onBack }: StoryScreenP
             <button
               onClick={handleSaveToggle}
               className={`flex-1 py-4 rounded-2xl flex items-center justify-center gap-2 font-black transition-all duration-200 ${
-                isSaved 
-                  ? "bg-blue-50 text-blue-600 border-2 border-blue-600" 
-                  : "bg-gray-50 text-gray-400 border-2 border-transparent hover:border-blue-200 hover:text-blue-500"
+                isSaved ? "bg-blue-50 text-blue-600 border-2 border-blue-600" : "bg-gray-50 text-gray-400 border-2 border-transparent"
               }`}
             >
               {isSaved ? <BookmarkCheck className="w-6 h-6" /> : <Bookmark className="w-6 h-6" />}
               {isSaved ? "내 보관함" : "저장하기"}
             </button>
-            <button onClick={handleNewEpisode} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg active:scale-95">
-              <RefreshCw className="w-6 h-6" />
-              다른 이야기
+            <button onClick={() => toast("새 에피소드 추천 준비 중!")} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2">
+              <RefreshCw className="w-6 h-6" /> 다른 이야기
             </button>
           </div>
         </div>
