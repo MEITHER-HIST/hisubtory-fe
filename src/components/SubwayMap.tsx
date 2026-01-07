@@ -40,13 +40,14 @@ export function SubwayMap({ stationByName, onPickEpisode, isLoggedIn }: SubwayMa
           const dto = stationByName.get(cleanName) || stationByName.get(stationName.trim());
           
           const isViewed = dto?.color === "green";
-          // 클릭 가능 여부: 방문했거나(localStorage 포함), 서버에서 clickable로 판단된 경우
+          // 클릭 가능 여부: 서버에서 로그인 여부를 판단하여 내려준 clickable 값 사용
           const canClick = dto?.clickable === true;
 
           return (
             <g key={index} 
                className={canClick ? "cursor-pointer" : "cursor-default"} 
                onClick={() => canClick && onPickEpisode(dto!.id)}>
+              {/* 역 점(Dot) */}
               <circle
                 cx={pos.x} cy={pos.y} r={hoveredStation?.name === stationName ? 13 : 10}
                 fill={isViewed ? "#22c55e" : "#9ca3af"}
@@ -62,8 +63,9 @@ export function SubwayMap({ stationByName, onPickEpisode, isLoggedIn }: SubwayMa
                 }}
                 onMouseLeave={() => setHoveredStation(null)}
               />
-              <text x={pos.x} y={pos.y + 25} textAnchor="middle" 
-                    className={`text-[10px] font-bold pointer-events-none ${isViewed ? "fill-green-600" : "fill-gray-400"}`}>
+              {/* ✅ [수정] 역 이름 위치: y값을 pos.y - 20으로 변경하여 라인 위로 배치 */}
+              <text x={pos.x} y={pos.y - 20} textAnchor="middle" 
+                    className={`text-[11px] font-bold pointer-events-none transition-colors ${isViewed ? "fill-green-600" : "fill-gray-400"}`}>
                 {stationName}
               </text>
             </g>
@@ -84,7 +86,7 @@ export function SubwayMap({ stationByName, onPickEpisode, isLoggedIn }: SubwayMa
           <p className="text-[11px] text-gray-500 whitespace-nowrap">
             {hoveredStation.dto?.color === "green" 
               ? "✅ 다시보기 가능" 
-              : (isLoggedIn ? "🔒 미방문 역" : "🔒 로그인 시 입장 가능")}
+              : (isLoggedIn ? "🔒 미방문 역" : "🔒 로그인 후 이용 가능")}
           </p>
         </div>
       )}
