@@ -46,7 +46,7 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <p className="text-gray-600 mb-4">로그인이 필요합니다</p>
-          <button onClick={onBack} className="px-6 py-3 bg-blue-600 text-white rounded-lg">
+          <button onClick={onBack} className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold">
             돌아가기
           </button>
         </div>
@@ -55,7 +55,11 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-bold text-blue-600 bg-white">기록을 불러오는 중...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center font-bold text-blue-600 bg-white">
+        <p>기록을 불러오는 중...</p>
+      </div>
+    );
   }
 
   const renderStoryCard = (episode: HistoryItem) => (
@@ -72,29 +76,27 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">NO IMAGE</div>
+          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs bg-gray-50">
+            등록된 이미지가 없습니다.
+          </div>
         )}
         <div className="absolute top-2 left-2">
           <span className="px-2 py-1 bg-black/60 text-white text-[10px] font-bold rounded-lg">
-            {episode.stationName}
+            {episode.stationName.replace(/역$/, "")}역
           </span>
         </div>
       </div>
       <div className="flex flex-col flex-1">
         <h4 className="text-gray-900 font-bold mb-1 line-clamp-1">{episode.title}</h4>
         <p className="text-gray-500 text-xs line-clamp-2 leading-relaxed">
-          {episode.content || `${episode.stationName}역의 역사 이야기입니다.`}
+          {episode.stationName}의 이야기입니다.
         </p>
       </div>
     </button>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* ✅ 수정 핵심 1: 배너(Header) 
-        - fixed가 아닌 sticky를 사용하여 레이아웃 흐름을 유지하되 상단 고정
-        - bg-white와 z-50으로 본문이 위로 올라오는 것을 원천 차단
-      */}
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       <header className="sticky top-0 z-50 w-full bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-2 text-gray-700 hover:text-blue-600 font-bold transition-colors">
@@ -106,12 +108,7 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
         </div>
       </header>
 
-      {/* ✅ 수정 핵심 2: 메인 영역(Main)
-        - pt-8 정도로 적당한 여백을 주어 배너 바로 아래에서 자연스럽게 시작
-      */}
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
-        
-        {/* 상단 프로필/여행 기록 카드 */}
         <div className="bg-white rounded-2xl shadow-md p-8 mb-8 border border-gray-100">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">{user.name}님의 여행 기록</h2>
           <div className="flex flex-wrap gap-4">
@@ -126,15 +123,12 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
           </div>
         </div>
 
-        {/* 탭 메뉴 섹션 */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
           <div className="flex border-b border-gray-200 bg-gray-50/50">
             <button
               onClick={() => setActiveTab('recent')}
               className={`flex-1 py-4 flex items-center justify-center gap-2 font-bold transition-all ${
-                activeTab === 'recent' 
-                ? 'bg-white text-blue-600 border-b-4 border-blue-600' 
-                : 'text-gray-500 hover:bg-gray-100'
+                activeTab === 'recent' ? 'bg-white text-blue-600 border-b-4 border-blue-600' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
               <Clock className="w-5 h-5" />
@@ -143,9 +137,7 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
             <button
               onClick={() => setActiveTab('saved')}
               className={`flex-1 py-4 flex items-center justify-center gap-2 font-bold transition-all ${
-                activeTab === 'saved' 
-                ? 'bg-white text-blue-600 border-b-4 border-blue-600' 
-                : 'text-gray-500 hover:bg-gray-100'
+                activeTab === 'saved' ? 'bg-white text-blue-600 border-b-4 border-blue-600' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
               <LibraryIcon className="w-5 h-5" />
@@ -156,17 +148,9 @@ export function MyPage({ user, onBack, onEpisodeClick }: MyPageProps) {
           <div className="p-6 bg-white">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {activeTab === 'recent' ? (
-                recentStories.length === 0 ? (
-                  <p className="col-span-full text-center py-20 text-gray-400 font-medium">시청 기록이 없습니다.</p>
-                ) : (
-                  recentStories.map(renderStoryCard)
-                )
+                recentStories.length === 0 ? <p className="col-span-full text-center py-20 text-gray-400 font-medium">시청 기록이 없습니다.</p> : recentStories.map(renderStoryCard)
               ) : (
-                myStories.length === 0 ? (
-                  <p className="col-span-full text-center py-20 text-gray-400 font-medium">보관함이 비어있습니다.</p>
-                ) : (
-                  myStories.map(renderStoryCard)
-                )
+                myStories.length === 0 ? <p className="col-span-full text-center py-20 text-gray-400 font-medium">보관함이 비어있습니다.</p> : myStories.map(renderStoryCard)
               )}
             </div>
           </div>
