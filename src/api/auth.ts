@@ -15,6 +15,9 @@ async function ensureCsrf() {
   });
 }
 
+/**
+ * 전송 방식을 JSON으로 변경하여 장고의 DRF(request.data)와 호환성을 높였습니다.
+ */
 async function postForm(url: string, body: Record<string, string>) {
   await ensureCsrf();
   const csrftoken = getCookie("csrftoken") ?? "";
@@ -23,27 +26,14 @@ async function postForm(url: string, body: Record<string, string>) {
     method: "POST",
     credentials: "include",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
       "X-CSRFToken": csrftoken,
     },
-    body: new URLSearchParams(body),
+    body: new URLSearchParams(body).toString(),
   });
 
-  // ✅ 400 뜰 때 이유 확인하려고 에러 바디까지 읽어줌
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    console.log("API ERROR:", data);
-    throw new Error(data?.message ?? "request_failed");
-  }
-
-  if (!res.ok) {
-    const msg =
-      data?.message ||
-      (data?.errors ? JSON.stringify(data.errors) : null) ||
-      "request_failed";
-    throw new Error(msg);
-  }
-  
+  if (!res.ok) throw new Error(data?.message || "request_failed");
   return data;
 }
 
@@ -51,20 +41,12 @@ export const authApi = {
   login: (email: string, password: string) =>
     postForm("/api/accounts/login/", { email, password }),
 
-  signup: (username: string, email: string, password: string, password2: string) =>
-    postForm("/api/accounts/signup/", {
-      username,
-      email,
-      password1: password,
-      password2,
-    }),
+  logout: () => postForm("/api/accounts/logout/", {}),
 
   me: async () => {
     const res = await fetch("/api/accounts/me/", { credentials: "include" });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message ?? "not_logged_in");
+    if (!res.ok) throw new Error(data?.message || "not_logged_in");
     return data;
   },
-
-  logout: () => postForm("/api/accounts/logout/", {}),
 };

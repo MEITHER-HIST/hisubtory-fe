@@ -1,190 +1,202 @@
-import { useState } from 'react';
-import { Shuffle, User, Menu, ChevronDown } from 'lucide-react';
-import { episodes } from '../data/episodes';
-import { getUserProgress } from '../utils/localStorage';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Shuffle, User as UserIcon, Menu, ChevronDown, Info, X } from 'lucide-react';
 import { SubwayMap } from './SubwayMap';
+import type { User } from "../App";
 
-interface MainScreenProps {
-  user: { name: string } | null;
-  onLoginClick: () => void;
-  onLogout: () => void;
-  onStationClick: (stationId: string) => void;
-  onRandomStation: (stationId: string, episodeId: string) => void;
-  onGoToMyPage: () => void;
+// ✅ 1호선부터 9호선까지 공식 색상 데이터 정의
+const LINE_COLORS: Record<string, string> = {
+  "1": "#0052A4",
+  "2": "#00A84D",
+  "3": "#EF7C1C",
+  "4": "#00A5DE",
+  "5": "#996CAC",
+  "6": "#CD7C2F",
+  "7": "#747F00",
+  "8": "#E6186C",
+  "9": "#BB8336",
+};
+
+interface StationDTO { 
+  id: number; 
+  name: string; 
+  clickable: boolean; 
+  color: "green" | "gray"; 
+  is_viewed: boolean; 
+  has_story: boolean; 
 }
 
-export function MainScreen({ user, onLoginClick, onLogout, onStationClick, onRandomStation, onGoToMyPage }: MainScreenProps) {
-  const [isLineDropdownOpen, setIsLineDropdownOpen] = useState(false);
+interface MainScreenProps {
+  user: User | null;
+  currentLine: string;
+  onMenuClick: () => void;
+  onLoginClick: () => void;
+  onLogout: () => void | Promise<void>;
+  onGoToMyPage: () => void;
+  onStationClick: (stationId: string, episodeId: string) => void; 
+  onRandomStation: (stationId: string, episodeId: string) => void;
+}
+
+export function MainScreen({ 
+  user, 
+  currentLine, 
+  onMenuClick, 
+  onLoginClick, 
+  onLogout, 
+  onGoToMyPage, 
+  onStationClick, 
+  onRandomStation 
+}: MainScreenProps) {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [stations, setStations] = useState<StationDTO[]>([]);
+  const [showRandomButton, setShowRandomButton] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const progress = getUserProgress();
-
-  const handleRandomStation = () => {
-    if (user) {
-      // 로그인한 경우: 안 본 에피소드 중에서 랜덤
-      const unviewedEpisodes = episodes.filter(ep => 
-        !progress.viewedEpisodes.includes(ep.id)
-      );
+  const fetchMain = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/pages/v1/main/?line=${currentLine}`, { credentials: "include" });
+      const data = await res.json();
       
-      if (unviewedEpisodes.length > 0) {
-        const randomEp = unviewedEpisodes[Math.floor(Math.random() * unviewedEpisodes.length)];
-        onRandomStation(randomEp.stationId, randomEp.id);
-      } else {
-        // 모두 봤으면 전체에서 랜덤
-        const randomEp = episodes[Math.floor(Math.random() * episodes.length)];
-        onRandomStation(randomEp.stationId, randomEp.id);
+      if (data.success && data.stations) {
+        const mergedStations = data.stations.map((s: StationDTO) => ({
+          ...s,
+          is_viewed: user ? s.is_viewed : false,
+          color: (user && s.is_viewed) ? "green" : "gray",
+          clickable: user ? s.has_story : false
+        }));
+        setStations(mergedStations);
+        setShowRandomButton(data.show_random_button);
       }
-    } else {
-      // 로그인하지 않은 경우: 전체에서 랜덤
-      const randomEp = episodes[Math.floor(Math.random() * episodes.length)];
-      onRandomStation(randomEp.stationId, randomEp.id);
+    } catch (e) {
+      console.error("fetch 에러:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, currentLine]);
+
+  useEffect(() => { fetchMain(); }, [fetchMain]);
+
+  const stationByName = useMemo(() => {
+    const m = new Map<string | number, StationDTO>();
+    stations.forEach(s => {
+      const clean = s.name.replace(/역$/, "");
+      m.set(s.id, s);
+      m.set(clean, s);
+    });
+    return m;
+  }, [stations]);
+
+  const handleStationClick = async (stationId: number) => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/pages/v1/episode/pick/?station_id=${stationId}`, { credentials: "include" });
+      const data = await res.json();
+      if (data.success && data.episode_id) {
+        onStationClick(String(stationId), String(data.episode_id));
+      } else {
+        alert(data.message || "감상 가능한 에피소드가 없습니다.");
+      }
+    } catch (err) {
+      console.error("에피소드 조회 에러:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRandomStation = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/pages/v1/episode/random/?line=${currentLine}`, { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.episode_id) {
+        onRandomStation(String(data.station_name), String(data.episode_id));
+      }
+    } catch (err) {
+      console.error("랜덤 에러:", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          {/* Hamburger Menu - Left */}
-          <div className="relative">
-            <button
-              onMouseEnter={() => setIsLineDropdownOpen(true)}
-              onMouseLeave={() => setIsLineDropdownOpen(false)}
-              className="p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              title="노선 선택"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            
-            {isLineDropdownOpen && (
-              <div 
-                className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50"
-                onMouseEnter={() => setIsLineDropdownOpen(true)}
-                onMouseLeave={() => setIsLineDropdownOpen(false)}
-              >
-                <div className="px-4 py-2 border-b border-gray-200">
-                  <p className="text-sm text-gray-500">노선 선택</p>
-                </div>
-                <button 
-                  className="w-full px-4 py-3 text-left text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
-                >
-                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                  <span>3호선</span>
-                </button>
-                {['1호선', '2호선', '4호선', '5호선', '6호선', '7호선', '8호선', '9호선'].map((line) => (
-                  <button
-                    key={line}
-                    disabled
-                    className="w-full px-4 py-3 text-left text-gray-400 cursor-not-allowed flex items-center gap-2"
-                  >
-                    <div className="w-3 h-3 rounded-full bg-gray-300"></div>
-                    <span>{line} (준비중)</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Title - Center */}
-          <h1 className="absolute left-1/2 transform -translate-x-1/2 text-blue-600 tracking-wider">
-            HISUBTORY
-          </h1>
-
-          {/* Right Menu */}
+    <div className="min-h-screen flex flex-col bg-white">
+      {/* --- 헤더 --- */}
+      <header className="bg-white shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
+          <Menu 
+            className="w-6 h-6 text-gray-600 cursor-pointer hover:text-blue-600 transition-colors" 
+            onClick={onMenuClick} 
+          />
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-blue-600 font-bold text-xl tracking-widest">HISUBTORY</h1>
           <div className="flex items-center gap-2">
             {user ? (
               <div className="relative">
-                <button
-                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                  className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                >
-                  <User className="w-4 h-4" />
-                  <span>{user.name}님</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
+                <button onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="flex items-center gap-1 text-sm font-bold bg-gray-50 px-3 py-2 rounded-xl border border-transparent hover:border-gray-200 transition-all">
+                  <UserIcon className="w-4 h-4 text-blue-600" />
+                  <span className="text-gray-900">{user.name}님</span>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
                 </button>
-                
                 {isProfileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
-                    <button
-                      onClick={() => {
-                        onGoToMyPage();
-                        setIsProfileDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      마이페이지
-                    </button>
-                    <button
-                      onClick={() => {
-                        onLogout();
-                        setIsProfileDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      로그아웃
-                    </button>
+                  <div className="absolute right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-2 z-[9999]" style={{ minWidth: '160px' }}>
+                    <button onClick={() => { onGoToMyPage(); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-gray-700 hover:bg-blue-50 rounded-xl">마이페이지</button>
+                    <button onClick={() => { onLogout(); setIsProfileDropdownOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl border-t border-gray-50 mt-1">로그아웃</button>
                   </div>
                 )}
               </div>
             ) : (
-              <button
-                onClick={onLoginClick}
-                className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-              >
-                <User className="w-4 h-4" />
-                <span>로그인</span>
+              <button onClick={onLoginClick} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold transition-colors hover:bg-blue-700 shadow-sm">
+                로그인
               </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full">
-        <div className="text-center mb-6">
-          <h2 className="text-gray-900 mb-2">서울 지하철 3호선 역사 여행</h2>
-          <p className="text-gray-600">역을 클릭하거나 랜덤으로 선택해서 역사 스토리를 탐험하세요</p>
+      <main className="flex-1 max-w-5xl mx-auto px-4 py-8 w-full flex flex-col items-center">
+        
+        {/* ✅ [수정] 호선 안내 배지: LINE_COLORS 객체를 사용하여 모든 호선 색상 자동 적용 */}
+        <div className="mb-6 self-start flex items-center gap-4 bg-white px-6 py-2.5 rounded-full border border-gray-200 shadow-md">
+          <div 
+            className="w-5 h-5 rounded-full shadow-sm" 
+            style={{ 
+              backgroundColor: LINE_COLORS[currentLine] || "#cbd5e1" 
+            }} 
+          />
+          <span className="text-base font-black text-gray-800">{currentLine}호선 이용 중</span>
         </div>
 
-        {/* Subway Map */}
-        <div className="mb-6">
-          <SubwayMap user={user} onStationClick={onStationClick} />
-          
-          {!user && (
-            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-800 text-sm text-center">
-                💡 로그인하면 역 마커를 클릭해서 스토리를 볼 수 있어요!
-              </p>
-            </div>
-          )}
+        {/* 지하철 노선도 영역 */}
+        <div className="w-full mb-8 bg-gray-50 rounded-[40px] p-6 shadow-inner min-h-[400px] flex flex-col items-center justify-center relative border border-gray-100">
+          {stations.length > 0 ? (
+            <SubwayMap 
+              stationByName={stationByName} 
+              onPickEpisode={handleStationClick} 
+              isLoggedIn={!!user} 
+            />
+          ) : !isLoading && <div className="text-blue-600 font-bold">지하철 노선도를 불러오는 중...</div>}
+          {isLoading && <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 rounded-[40px] font-bold text-blue-600">처리 중...</div>}
         </div>
 
-        {/* Random Station Button */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-gray-900 mb-4">랜덤 역 선정</h3>
-          <button
-            onClick={handleRandomStation}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+        {/* 로그인 안내 박스 */}
+        {!user && (
+          <div className="w-full mb-4 bg-amber-50 border border-amber-100 rounded-xl py-4 flex items-center justify-center gap-3 shadow-sm px-4">
+            <Info className="w-5 h-5 text-amber-500 shrink-0" />
+            <p className="text-amber-900 font-bold text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+              로그인을 하시면 나만의 여행 기록을 남기고 좋아하는 이야기를 보관할 수 있어요! 😊
+            </p>
+          </div>
+        )}
+
+        {/* 랜덤 스토리 버튼 */}
+        {showRandomButton && (
+          <button 
+            onClick={handleRandomStation} 
+            className="w-full py-6 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-3 text-2xl transition-transform active:scale-95 hover:bg-blue-700"
           >
-            <Shuffle className="w-5 h-5" />
-            랜덤 역 뽑기
+            <Shuffle className="w-6 h-6" /> 오늘의 랜덤 스토리 탐험하기
           </button>
-          <p className="text-gray-500 text-sm mt-3 text-center">
-            {user 
-              ? '아직 안 본 에피소드 중에서 랜덤으로 선택됩니다'
-              : '전체 역 중에서 랜덤으로 선택됩니다'
-            }
-          </p>
-        </div>
+        )}
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 py-6 text-center text-gray-500 text-sm">
-          © 2025 HISUBTORY. 서울 지하철 3호선 역사 탐험 프로젝트
-        </div>
-      </footer>
     </div>
   );
 }

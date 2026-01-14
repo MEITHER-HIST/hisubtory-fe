@@ -1,0 +1,48 @@
+name: Deploy FE via CodeDeploy
+
+on:
+  push:
+    branches: [main, dev]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Create deployment package
+        run: |
+          zip -r hisubFE-deploy.zip appspec.yml scripts build \
+            -x "**/.DS_Store" "**/__MACOSX/*"
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp hisubFE-deploy.zip s3://${{ secrets.S3_BUCKET }}/hisubFE-deploy.zip
+
+      - name: Deploy with CodeDeploy
+        run: |
+          aws deploy create-deployment \
+            --application-name "${{ secrets.CODEDEPLOY_APPLICATION }}" \
+            --deployment-group-name "${{ secrets.CODE_DEPLOYMENT_GROUP_FE }}" \
+            --s3-location bucket=${{ secrets.S3_BUCKET }},key=hisubFE-deploy.zip,bundleType=zip \
+            --region ap-northeast-2

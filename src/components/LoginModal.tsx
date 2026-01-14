@@ -1,22 +1,65 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
-import { authApi } from "../api/auth";
+import type { User } from "../App"; // App.tsx에서 export한 User 타입 사용
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (username: string) => void;
+  onLogin: (user: User) => void; // ✅ username string → User 객체로 변경
 }
 
-type FieldErrors = Partial<{
-  username: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  form: string;
-}>;
+function getCookie(name: string) {
+  const v = `; ${document.cookie}`;
+  const parts = v.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()!.split(";").shift() ?? null;
+  return null;
+}
 
-const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+async function ensureCsrf() {
+  await fetch("/api/accounts/csrf/", {
+    method: "GET",
+    credentials: "include",
+  });
+}
+
+async function postForm(url: string, body: Record<string, string>) {
+  await ensureCsrf();
+  const csrftoken = getCookie("csrftoken") ?? "";
+
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      "X-CSRFToken": csrftoken,
+    },
+    body: new URLSearchParams(body).toString(),
+  });
+
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = null;
+  }
+  return { res, data, text };
+}
+
+function prettyErrors(errors: any): string {
+  if (!errors) return "요청에 실패했습니다.";
+  // Django form.errors는 {field: ["msg",...]} 형태가 많음
+  try {
+    const lines: string[] = [];
+    for (const [k, v] of Object.entries(errors)) {
+      if (Array.isArray(v)) lines.push(`${k}: ${v.join(", ")}`);
+      else lines.push(`${k}: ${String(v)}`);
+    }
+    return lines.join("\n");
+  } catch {
+    return "입력값을 확인해 주세요.";
+  }
+}
 
 export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
   const [username, setUsername] = useState("");
@@ -25,65 +68,59 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
 
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
-
-  // 탭 바꾸면 에러 정리
-  useEffect(() => {
-    setError(null);
-    setFieldErrors({});
-  }, [activeTab]);
+  const [err, setErr] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const inputClass = (hasError?: boolean) =>
-    `w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 ${
-      hasError
-        ? "border-red-400 focus:ring-red-200 focus:border-red-400"
-        : "border-gray-300 focus:ring-blue-600 focus:border-transparent"
-    }`;
+  const fetchMeAndLogin = async () => {
+    const meRes = await fetch("/api/accounts/me/", { credentials: "include" });
+    const meText = await meRes.text();
+    let me: any = null;
+    try {
+      me = JSON.parse(meText);
+    } catch {
+      me = null;
+    }
 
-  const closeAndReset = () => {
-    setError(null);
-    setFieldErrors({});
-    setLoading(false);
-    onClose();
+    if (!meRes.ok || !me?.success) {
+      throw new Error("me_failed");
+    }
+
+    const u: User = {
+      id: me.id,
+      username: me.username,
+      email: me.email ?? "",
+      name: me.username, // UI에서 name 쓰는 곳 대비
+    };
+    onLogin(u);
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setFieldErrors({});
+    setErr(null);
 
-    const trimmedEmail = email.trim();
-    const trimmedPw = password.trim();
-
-    const nextErr: FieldErrors = {};
-    if (!trimmedEmail) nextErr.email = "이메일을 입력해 주세요.";
-    else if (!isValidEmail(trimmedEmail))
-      nextErr.email = "이메일 형식을 확인해 주세요. 예: example@email.com";
-    if (!trimmedPw) nextErr.password = "비밀번호를 입력해 주세요.";
-
-    if (Object.keys(nextErr).length > 0) {
-      setFieldErrors(nextErr);
-      setError("입력값을 확인해 주세요.");
+    if (!email.trim() || !password.trim()) {
+      setErr("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
 
     setLoading(true);
     try {
-      const data = await authApi.login(trimmedEmail, trimmedPw);
-      onLogin(data.username);
-      closeAndReset();
-    } catch (err: any) {
-      const msg = err?.message ?? "로그인 실패";
-      setError(msg);
+      const { res, data, text } = await postForm("/api/accounts/login/", {
+        email: email.trim(),
+        password,
+      });
 
-      // 백엔드 에러 메시지 기반으로 필드에 붙여주기(간단 매핑)
-      if (String(msg).toLowerCase().includes("email")) setFieldErrors({ email: msg });
-      else if (String(msg).toLowerCase().includes("password")) setFieldErrors({ password: msg });
-      else setFieldErrors({ form: msg });
+      if (!res.ok || !data?.success) {
+        setErr(data?.message ?? text ?? "로그인 실패");
+        return;
+      }
+
+      await fetchMeAndLogin();
+      setPassword("");
+    } catch (e) {
+      setErr("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -91,61 +128,51 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setFieldErrors({});
+    setErr(null);
 
-    const trimmedEmail = email.trim();
-    const trimmedUsername = username.trim();
-    const trimmedPw = password.trim();
-    const trimmedPw2 = confirmPassword.trim();
-
-    const nextErr: FieldErrors = {};
-    if (!trimmedEmail) nextErr.email = "이메일을 입력해 주세요.";
-    else if (!isValidEmail(trimmedEmail))
-      nextErr.email = "이메일 형식을 확인해 주세요. 예: example@email.com";
-
-    // username은 비워도 되게(이메일 앞부분 자동 생성) 하지만, 안내는 띄워줄 수 있음
-    // if (!trimmedUsername) nextErr.username = "사용자 이름을 입력해 주세요."; // 원하면 이 줄 활성화
-
-    if (!trimmedPw) nextErr.password = "비밀번호를 입력해 주세요.";
-    if (!trimmedPw2) nextErr.confirmPassword = "비밀번호 확인을 입력해 주세요.";
-    if (trimmedPw && trimmedPw2 && trimmedPw !== trimmedPw2)
-      nextErr.confirmPassword = "비밀번호가 일치하지 않습니다.";
-
-    if (Object.keys(nextErr).length > 0) {
-      setFieldErrors(nextErr);
-      setError("입력값을 확인해 주세요.");
+    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+      setErr("모든 항목을 입력해 주세요.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErr("비밀번호가 일치하지 않습니다.");
       return;
     }
 
-    const finalUsername = trimmedUsername || trimmedEmail.split("@")[0];
-
     setLoading(true);
     try {
-      // 1) 회원가입
-      await authApi.signup(finalUsername, trimmedEmail, trimmedPw, trimmedPw2);
+      // ✅ Django SignupForm(UserCreationForm)이면 password1/password2가 정석
+      const { res, data, text } = await postForm("/api/accounts/signup/", {
+        username: username.trim(),
+        email: email.trim(),
+        password1: password,
+        password2: confirmPassword,
+      });
 
-      // 2) 자동 로그인
-      const data = await authApi.login(trimmedEmail, trimmedPw);
+      if (!res.ok || !data?.success) {
+        if (data?.errors) setErr(prettyErrors(data.errors));
+        else setErr(data?.message ?? text ?? "회원가입 실패");
+        return;
+      }
 
-      onLogin(data.username);
-      closeAndReset();
+      // ✅ 회원가입 직후 자동 로그인(세션 생성)
+      const loginTry = await postForm("/api/accounts/login/", {
+        email: email.trim(),
+        password,
+      });
+      if (!loginTry.res.ok || !loginTry.data?.success) {
+        setActiveTab("login");
+        setErr("회원가입은 완료됐지만 로그인에 실패했어요. 로그인 탭에서 다시 시도해 주세요.");
+        return;
+      }
 
-      // 폼 초기화
+      await fetchMeAndLogin();
+
       setUsername("");
-      setEmail("");
       setPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
-      const msg = err?.message ?? "회원가입 실패";
-      setError(msg);
-
-      // 폼 에러(JSON stringify)로 올 수도 있어서 대충 키워드로 매핑
-      const lower = String(msg).toLowerCase();
-      if (lower.includes("email")) setFieldErrors({ email: msg });
-      else if (lower.includes("username")) setFieldErrors({ username: msg });
-      else if (lower.includes("password")) setFieldErrors({ password: msg });
-      else setFieldErrors({ form: msg });
+    } catch {
+      setErr("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -155,48 +182,51 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
         <button
-          onClick={closeAndReset}
+          onClick={() => {
+            setErr(null);
+            onClose();
+          }}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+          aria-label="close"
         >
           <X className="w-6 h-6" />
         </button>
 
         <h2 className="text-gray-900 mb-6">환영합니다!</h2>
 
-        {/* 공통 에러 박스 */}
-        {(error || fieldErrors.form) && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {fieldErrors.form ?? error}
-          </div>
-        )}
-
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg">
           <button
             type="button"
-            onClick={() => setActiveTab("login")}
+            onClick={() => {
+              setErr(null);
+              setActiveTab("login");
+            }}
             className={`flex-1 py-2 rounded-md transition-all ${
-              activeTab === "login"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
+              activeTab === "login" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
             }`}
           >
             로그인
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("signup")}
+            onClick={() => {
+              setErr(null);
+              setActiveTab("signup");
+            }}
             className={`flex-1 py-2 rounded-md transition-all ${
-              activeTab === "signup"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
+              activeTab === "signup" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
             }`}
           >
             회원가입
           </button>
         </div>
 
-        {/* Login Form */}
+        {err && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-100 whitespace-pre-wrap">
+            {err}
+          </div>
+        )}
+
         {activeTab === "login" && (
           <form onSubmit={handleLoginSubmit}>
             <div className="mb-4">
@@ -207,17 +237,12 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
                 type="email"
                 id="login-email"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined }));
-                }}
-                className={inputClass(!!fieldErrors.email)}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 placeholder="example@email.com"
                 autoFocus
+                autoComplete="email"
               />
-              {fieldErrors.email && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
-              )}
             </div>
 
             <div className="mb-6">
@@ -228,33 +253,25 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
                 type="password"
                 id="login-password"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined }));
-                }}
-                className={inputClass(!!fieldErrors.password)}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 placeholder="비밀번호를 입력하세요"
+                autoComplete="current-password"
               />
-              {fieldErrors.password && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>
-              )}
             </div>
 
             <button
               type="submit"
               disabled={loading}
               className={`w-full py-3 rounded-lg transition-colors ${
-                loading
-                  ? "bg-blue-300 text-white cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
+                loading ? "bg-blue-300 text-white cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
-              {loading ? "로그인 중..." : "로그인"}
+              {loading ? "처리 중..." : "로그인"}
             </button>
           </form>
         )}
 
-        {/* Signup Form */}
         {activeTab === "signup" && (
           <form onSubmit={handleSignupSubmit}>
             <div className="mb-4">
@@ -265,20 +282,12 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
                 type="text"
                 id="signup-username"
                 value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  if (fieldErrors.username) setFieldErrors((p) => ({ ...p, username: undefined }));
-                }}
-                className={inputClass(!!fieldErrors.username)}
-                placeholder="이름을 입력하세요 (비워도 됩니다)"
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                placeholder="이름을 입력하세요"
                 autoFocus
+                autoComplete="username"
               />
-              {fieldErrors.username && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.username}</p>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                비워두면 이메일 앞부분으로 자동 설정됩니다.
-              </p>
             </div>
 
             <div className="mb-4">
@@ -289,16 +298,11 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
                 type="email"
                 id="signup-email"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined }));
-                }}
-                className={inputClass(!!fieldErrors.email)}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 placeholder="example@email.com"
+                autoComplete="email"
               />
-              {fieldErrors.email && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>
-              )}
             </div>
 
             <div className="mb-4">
@@ -309,16 +313,11 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
                 type="password"
                 id="signup-password"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined }));
-                }}
-                className={inputClass(!!fieldErrors.password)}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 placeholder="비밀번호를 입력하세요"
+                autoComplete="new-password"
               />
-              {fieldErrors.password && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>
-              )}
             </div>
 
             <div className="mb-6">
@@ -329,29 +328,21 @@ export function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
                 type="password"
                 id="signup-confirm-password"
                 value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (fieldErrors.confirmPassword)
-                    setFieldErrors((p) => ({ ...p, confirmPassword: undefined }));
-                }}
-                className={inputClass(!!fieldErrors.confirmPassword)}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                 placeholder="비밀번호를 다시 입력하세요"
+                autoComplete="new-password"
               />
-              {fieldErrors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.confirmPassword}</p>
-              )}
             </div>
 
             <button
               type="submit"
               disabled={loading}
               className={`w-full py-3 rounded-lg transition-colors ${
-                loading
-                  ? "bg-blue-300 text-white cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
+                loading ? "bg-blue-300 text-white cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
-              {loading ? "회원가입 중..." : "회원가입"}
+              {loading ? "처리 중..." : "회원가입"}
             </button>
           </form>
         )}
